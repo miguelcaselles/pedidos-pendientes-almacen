@@ -1,0 +1,109 @@
+@model OrdersViewModel
+@{
+    ViewData["Title"] = "Pedidos pendientes";
+    var today = DateOnly.FromDateTime(DateTime.Today);
+}
+
+<h1 class="page-title">Pedidos pendientes</h1>
+<p class="page-sub">
+    Seguimiento de los pedidos del almacén pendientes de recepción.
+    @if (Model.UltimaCarga is not null)
+    {
+        <span>Última carga: @Model.UltimaCarga.Value.LocalDateTime.ToString("dd/MM/yyyy HH:mm").</span>
+    }
+</p>
+
+<div class="stats">
+    <div class="stat is-primary">
+        <div class="label">Pendientes</div>
+        <div class="value">@Model.TotalPendientes</div>
+    </div>
+    <div class="stat is-danger">
+        <div class="label">Para reclamar</div>
+        <div class="value">@Model.ParaReclamar</div>
+    </div>
+    <div class="stat is-warning">
+        <div class="label">Ya reclamados</div>
+        <div class="value">@Model.Reclamados</div>
+    </div>
+    <div class="stat is-success">
+        <div class="label">Recibidos hoy</div>
+        <div class="value">@Model.RecibidosHoy</div>
+    </div>
+</div>
+
+<div class="card">
+    <form method="get" class="flex flex-wrap" style="margin-bottom:16px">
+        <input type="text" name="search" value="@Model.Search" placeholder="Buscar por documento, proveedor, material o descripción…" style="max-width:420px" />
+        <button type="submit" class="btn">Buscar</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Search))
+        {
+            <a class="btn" asp-action="Index">Limpiar</a>
+        }
+        <span class="spacer"></span>
+        <a class="btn btn-primary" asp-controller="Carga" asp-action="Index">Cargar Excel</a>
+    </form>
+
+    @if (Model.Orders.Count == 0)
+    {
+        <div class="empty-state">
+            No hay pedidos pendientes que mostrar.
+            <br />
+            <a asp-controller="Carga" asp-action="Index">Carga el Excel de SAP</a> para empezar.
+        </div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th>Documento</th>
+                        <th>Material</th>
+                        <th>Descripción</th>
+                        <th>Proveedor</th>
+                        <th>Almacén</th>
+                        <th>Fecha</th>
+                        <th>Antigüedad</th>
+                        <th>Por entregar</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var o in Model.Orders)
+                    {
+                        var dias = PedidosPendientes.Core.BusinessDays.CountBusinessDays(o.FechaDocumento, today);
+                        <tr>
+                            <td>@o.DocumentoCompras</td>
+                            <td>@o.Material</td>
+                            <td class="wrap">@o.TextoBreve</td>
+                            <td class="wrap">@o.ProveedorNombre</td>
+                            <td>@o.Almacen</td>
+                            <td>@o.FechaDocumento.ToString("dd/MM/yyyy")</td>
+                            <td>@dias d háb.</td>
+                            <td>@(o.PorEntregarCantidad?.ToString("0.##") ?? "—")</td>
+                            <td>
+                                @if (o.EnFalta)
+                                {
+                                    <span class="tag tag-missing">En falta</span>
+                                }
+                                else if (o.Reclamado)
+                                {
+                                    <span class="tag tag-claimed">Reclamado</span>
+                                }
+                                else
+                                {
+                                    <span class="tag tag-pending">Pendiente</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.Orders.Count >= 500)
+        {
+            <p class="hint" style="margin-top:12px">Mostrando las primeras 500 líneas. Usa el buscador para acotar.</p>
+        }
+    }
+</div>

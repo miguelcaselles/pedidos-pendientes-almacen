@@ -1,0 +1,30 @@
+@{
+    ViewData["Title"] = "Cargar Excel";
+}
+
+<h1 class="page-title">Cargar Excel de pedidos pendientes</h1>
+<p class="page-sub">Sube la exportación de SAP del almacén. La actualización es no destructiva: conserva el estado de gestión ya registrado (recibido, reclamado, anulado, comentarios).</p>
+
+<div class="card">
+    <h2>Seleccionar archivo</h2>
+    <p class="hint">Formato admitido: Excel (.xlsx). Las columnas se detectan automáticamente por su cabecera.</p>
+
+    <form asp-controller="Carga" asp-action="Index" method="post" enctype="multipart/form-data">
+        @Html.AntiForgeryToken()
+        <div class="form-row">
+            <label for="archivo">Archivo Excel</label>
+            <input type="file" id="archivo" name="archivo" accept=".xlsx,.xlsm" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Cargar pedidos</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>¿Qué columnas espera?</h2>
+    <p class="hint mb-0">
+        Documento de compras · Nº de expediente administrativo · Centro de coste · Material ·
+        Tipo de imputación · Texto breve · Nº material de proveedor · Fecha documento ·
+        Historial pedido · Proveedor/Centro suministrador · Referencia del proveedor ·
+        Almacén · Por entregar (cantidad).
+    </p>
+</div>

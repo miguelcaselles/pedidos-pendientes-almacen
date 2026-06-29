@@ -1,29 +1,50 @@
+using Microsoft.EntityFrameworkCore;
+using PedidosPendientes.Infrastructure;
+using PedidosPendientes.Infrastructure.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Cabeceras de seguridad institucionales (equivalentes a las de la app original).
+app.Use(async (ctx, next) =>
+{
+    var h = ctx.Response.Headers;
+    h["X-Frame-Options"] = "DENY";
+    h["Content-Security-Policy"] = "frame-ancestors 'none'";
+    h["X-Content-Type-Options"] = "nosniff";
+    h["Referrer-Policy"] = "no-referrer";
+    h["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet";
+    h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+    await next();
+});
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseRouting();
-
 app.UseAuthorization();
-
-app.MapStaticAssets();
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}")
-    .WithStaticAssets();
+    pattern: "{controller=Home}/{action=Index}/{id?}");
 
+// En desarrollo con base en memoria, asegurar el esquema. En SQL Server, aplicar migraciones.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    if (db.Database.IsRelational())
+        db.Database.Migrate();
+    else
+        db.Database.EnsureCreated();
+}
 
 app.Run();
