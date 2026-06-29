@@ -1,0 +1,160 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using PedidosPendientes.Core.Abstractions;
+using PedidosPendientes.Core.Dtos;
+using PedidosPendientes.Core.Entities;
+using PedidosPendientes.Infrastructure.Data;
+
+namespace PedidosPendientes.Infrastructure.Services;
+
+/// <summary>
+/// Importación no destructiva: actualiza los datos que vienen del Excel pero
+/// conserva el estado de gestión (recibido/reclamado/anulado/comentarios...).
+/// </summary>
+public class OrderImportService : IOrderImportService
+{
+    private readonly AppDbContext _db;
+    private readonly IExcelOrderParser _parser;
+    private readonly ILogger<OrderImportService> _log;
+
+    public OrderImportService(AppDbContext db, IExcelOrderParser parser, ILogger<OrderImportService> log)
+    {
+        _db = db;
+        _parser = parser;
+        _log = log;
+    }
+
+    public async Task<UploadResult> ImportAsync(Stream xlsx, CancellationToken ct = default)
+    {
+        List<ParsedOrder> parsed;
+        try
+        {
+            parsed = _parser.Parse(xlsx).ToList();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error al parsear el Excel de pedidos");
+            return new UploadResult { Success = false, Message = "El archivo no se pudo leer. Verifica que es el Excel de pedidos pendientes correcto." };
+        }
+
+        if (parsed.Count == 0)
+            return new UploadResult { Success = false, Message = "El archivo no contiene filas de pedidos válidas." };
+
+        // Deduplicar filas con la misma clave (Documento+Material): SAP puede exportar
+        // líneas idénticas repetidas. Nos quedamos con la primera ocurrencia.
+        var deduped = parsed
+            .GroupBy(p => (p.DocumentoCompras, p.Material))
+            .Select(g => g.First())
+            .ToList();
+        var descartadasPorDuplicado = parsed.Count - deduped.Count;
+
+        var now = DateTimeOffset.UtcNow;
+
+        // Asegurar proveedores antes de tocar pedidos.
+        await EnsureProveedoresAsync(deduped, ct);
+
+        // Cargar las líneas existentes que coinciden con la clave (en lotes razonables).
+        var claves = deduped.Select(p => p.DocumentoCompras).Distinct().ToList();
+        var existentes = await _db.Orders
+            .Where(o => claves.Contains(o.DocumentoCompras))
+            .ToListAsync(ct);
+
+        var indice = existentes.ToDictionary(o => (o.DocumentoCompras, o.Material));
+
+        int insertados = 0, actualizados = 0;
+
+        foreach (var p in deduped)
+        {
+            if (indice.TryGetValue((p.DocumentoCompras, p.Material), out var existente))
+            {
+                // Actualización NO destructiva: solo los campos del Excel.
+                existente.ExpedienteAdministrativo = p.ExpedienteAdministrativo;
+                existente.CentroCoste = p.CentroCoste;
+                existente.TipoImputacion = p.TipoImputacion;
+                existente.TextoBreve = p.TextoBreve;
+                existente.NumMaterialProveedor = p.NumMaterialProveedor;
+                existente.FechaDocumento = p.FechaDocumento;
+                existente.TieneHistorialEntrega = p.TieneHistorialEntrega;
+                existente.ProveedorCodigo = p.ProveedorCodigo;
+                existente.ProveedorNombre = p.ProveedorNombre;
+                existente.ReferenciaProveedor = p.ReferenciaProveedor;
+                existente.Almacen = p.Almacen;
+                existente.PorEntregarCantidad = p.PorEntregarCantidad;
+                existente.LastUploadAt = now;
+                // NO se tocan: Recibido, Reclamado, Anulado, EnFalta, Comentarios, Incidencia, etc.
+                actualizados++;
+            }
+            else
+            {
+                _db.Orders.Add(new Order
+                {
+                    DocumentoCompras = p.DocumentoCompras,
+                    ExpedienteAdministrativo = p.ExpedienteAdministrativo,
+                    CentroCoste = p.CentroCoste,
+                    Material = p.Material,
+                    TipoImputacion = p.TipoImputacion,
+                    TextoBreve = p.TextoBreve,
+                    NumMaterialProveedor = p.NumMaterialProveedor,
+                    FechaDocumento = p.FechaDocumento,
+                    TieneHistorialEntrega = p.TieneHistorialEntrega,
+                    ProveedorCodigo = p.ProveedorCodigo,
+                    ProveedorNombre = p.ProveedorNombre,
+                    ReferenciaProveedor = p.ReferenciaProveedor,
+                    Almacen = p.Almacen,
+                    PorEntregarCantidad = p.PorEntregarCantidad,
+                    LastUploadAt = now,
+                });
+                insertados++;
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        var msg = $"Importación correcta: {insertados} nuevos, {actualizados} actualizados.";
+        if (descartadasPorDuplicado > 0)
+            msg += $" Se descartaron {descartadasPorDuplicado} líneas duplicadas del fichero.";
+
+        _log.LogInformation("Importación de pedidos: {Insertados} nuevos, {Actualizados} actualizados, {Dups} duplicados descartados",
+            insertados, actualizados, descartadasPorDuplicado);
+
+        return new UploadResult
+        {
+            Success = true,
+            TotalParsed = parsed.Count,
+            Insertados = insertados,
+            Actualizados = actualizados,
+            Message = msg,
+        };
+    }
+
+    /// <summary>Crea proveedores que aparecen en el Excel pero aún no existen (sin email; quedan "incompletos").</summary>
+    private async Task EnsureProveedoresAsync(List<ParsedOrder> parsed, CancellationToken ct)
+    {
+        var codigos = parsed
+            .Where(p => !string.IsNullOrWhiteSpace(p.ProveedorCodigo))
+            .Select(p => p.ProveedorCodigo!)
+            .Distinct()
+            .ToList();
+        if (codigos.Count == 0) return;
+
+        var existentes = await _db.Proveedores
+            .Where(pr => codigos.Contains(pr.Codigo))
+            .Select(pr => pr.Codigo)
+            .ToListAsync(ct);
+        var existentesSet = existentes.ToHashSet();
+
+        foreach (var p in parsed)
+        {
+            if (string.IsNullOrWhiteSpace(p.ProveedorCodigo)) continue;
+            if (existentesSet.Contains(p.ProveedorCodigo)) continue;
+
+            _db.Proveedores.Add(new Proveedor
+            {
+                Codigo = p.ProveedorCodigo!,
+                Nombre = p.ProveedorNombre ?? p.ProveedorCodigo!,
+                Activo = true,
+            });
+            existentesSet.Add(p.ProveedorCodigo);
+        }
+    }
+}
