@@ -1,0 +1,115 @@
+@model ConfiguracionViewModel
+@{
+    ViewData["Title"] = "Configuración";
+    var p = Model.Parametros;
+}
+
+<h1 class="page-title">Configuración</h1>
+<p class="page-sub">Parámetros operativos de reclamación y criticidad. Todos los plazos son en días hábiles.</p>
+
+<div class="grid-2">
+    <div class="card">
+        <h2>Plazos de reclamación por clase A/B/C</h2>
+        <p class="hint">
+            Días desde la fecha del pedido para que una línea pase a "reclamar".
+            Clasificación cargada: <strong>@Model.MaterialesClasificados materiales</strong>
+            (A: @Model.ClaseA · B: @Model.ClaseB · C: @Model.ClaseC).
+            Los materiales sin clasificar se tratan como C.
+        </p>
+        <form method="post" asp-action="Guardar">
+            @Html.AntiForgeryToken()
+            <div class="param-grid">
+                <div class="form-row">
+                    <label>Clase A</label>
+                    <input type="number" name="PlazoReclamoA" value="@p.PlazoReclamoA" min="1" max="60" />
+                </div>
+                <div class="form-row">
+                    <label>Clase B</label>
+                    <input type="number" name="PlazoReclamoB" value="@p.PlazoReclamoB" min="1" max="60" />
+                </div>
+                <div class="form-row">
+                    <label>Clase C / sin clase</label>
+                    <input type="number" name="PlazoReclamoC" value="@p.PlazoReclamoC" min="1" max="60" />
+                </div>
+                <div class="form-row">
+                    <label title="Días tras reclamar sin respuesta del proveedor para alertar">Alerta sin respuesta</label>
+                    <input type="number" name="PlazoRespuestaDias" value="@p.PlazoRespuestaDias" min="1" max="60" />
+                </div>
+                <div class="form-row">
+                    <label title="Días adicionales sin respuesta para pasar a llamar por teléfono">Días extra para llamar</label>
+                    <input type="number" name="PlazoLlamadaDias" value="@p.PlazoLlamadaDias" min="1" max="60" />
+                </div>
+                <div class="form-row">
+                    <label title="Plazo contractual por defecto de los proveedores con acuerdo marco sin plazo propio">Acuerdo marco (defecto)</label>
+                    <input type="number" name="PlazoAcuerdoMarcoDias" value="@p.PlazoAcuerdoMarcoDias" min="1" max="120" />
+                </div>
+                <div class="form-row">
+                    <label title="Plazo objetivo global de entrega para medir el riesgo de retraso">Plazo objetivo entrega</label>
+                    <input type="number" name="PlazoObjetivoEntregaDias" value="@p.PlazoObjetivoEntregaDias" min="1" max="120" />
+                </div>
+                <div class="form-row">
+                    <label title="Días naturales sin cargar el Excel de pedidos para avisar de datos obsoletos">Aviso carga obsoleta</label>
+                    <input type="number" name="DiasAvisoCargaObsoleta" value="@p.DiasAvisoCargaObsoleta" min="1" max="30" />
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar parámetros</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Ubicaciones críticas</h2>
+        <p class="hint">
+            Almacenes y centros de coste cuya criticidad (UCI, quirófano…) prioriza sus
+            pedidos en los listados y alertas.
+        </p>
+
+        <form method="post" asp-action="AgregarCriticidad" class="flex flex-wrap" style="margin-bottom:16px">
+            @Html.AntiForgeryToken()
+            <select name="tipo" style="max-width:150px">
+                <option value="almacen">Almacén</option>
+                <option value="centroCoste">Centro de coste</option>
+            </select>
+            <input type="text" name="codigo" placeholder="Código" required style="max-width:120px" />
+            <input type="text" name="descripcion" placeholder="Descripción (UCI…)" style="max-width:180px" />
+            <select name="nivel" style="max-width:110px">
+                <option value="critico">Crítico</option>
+                <option value="alto">Alto</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Añadir</button>
+        </form>
+
+        @if (Model.Criticidades.Count == 0)
+        {
+            <div class="empty-state">Sin ubicaciones críticas parametrizadas.</div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr><th>Tipo</th><th>Código</th><th>Descripción</th><th>Nivel</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in Model.Criticidades)
+                        {
+                            <tr>
+                                <td>@(c.Tipo == "centroCoste" ? "Centro de coste" : "Almacén")</td>
+                                <td>@c.Codigo</td>
+                                <td class="wrap">@c.Descripcion</td>
+                                <td>
+                                    <span class="tag tag-critico @(c.Nivel == "alto" ? "is-alto" : "")">@(c.Nivel == "alto" ? "Alto" : "Crítico")</span>
+                                </td>
+                                <td>
+                                    <form method="post" asp-action="EliminarCriticidad" asp-route-id="@c.Id" data-confirm="¿Eliminar la ubicación crítica @c.Codigo?">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="icon-btn" title="Eliminar">🗑️</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

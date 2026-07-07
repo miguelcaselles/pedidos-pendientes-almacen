@@ -9,5 +9,5 @@ namespace PedidosPendientes.Core.Abstractions;
 /// </summary>
 public interface IOrderImportService
 {
-    Task<UploadResult> ImportAsync(Stream xlsx, CancellationToken ct = default);
+    Task<UploadResult> ImportAsync(Stream xlsx, string fileName, CancellationToken ct = default);
 }

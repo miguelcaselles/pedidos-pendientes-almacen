@@ -1,55 +1,60 @@
+@using PedidosPendientes.Core
 @model OrdersViewModel
 @{
-    ViewData["Title"] = "Pedidos pendientes";
-    var today = DateOnly.FromDateTime(DateTime.Today);
+    ViewData["Title"] = "Pedidos";
+
+    string TabClass(string tab) => Model.Estado == tab ? "active" : "";
 }
 
-<h1 class="page-title">Pedidos pendientes</h1>
+<h1 class="page-title">Pedidos</h1>
 <p class="page-sub">
-    Seguimiento de los pedidos del almacén pendientes de recepción.
+    Seguimiento y reclamación de los pedidos del almacén.
     @if (Model.UltimaCarga is not null)
     {
         <span>Última carga: @Model.UltimaCarga.Value.LocalDateTime.ToString("dd/MM/yyyy HH:mm").</span>
     }
 </p>
 
-<div class="stats">
-    <div class="stat is-primary">
-        <div class="label">Pendientes</div>
-        <div class="value">@Model.TotalPendientes</div>
+@if (Model.CargaObsoleta)
+{
+    <div class="alert alert-warning">
+        <strong>Ojo:</strong> los datos tienen más de @Model.DiasAvisoCarga días
+        (o no hay carga). <a asp-controller="Carga" asp-action="Index">Carga el Excel de pedidos</a> para trabajar con datos frescos.
     </div>
-    <div class="stat is-danger">
-        <div class="label">Para reclamar</div>
-        <div class="value">@Model.ParaReclamar</div>
-    </div>
-    <div class="stat is-warning">
-        <div class="label">Ya reclamados</div>
-        <div class="value">@Model.Reclamados</div>
-    </div>
-    <div class="stat is-success">
-        <div class="label">Recibidos hoy</div>
-        <div class="value">@Model.RecibidosHoy</div>
-    </div>
-</div>
+}
+
+<nav class="pills" aria-label="Filtrar por estado">
+    <a class="@TabClass("pendientes")" asp-action="Index" asp-route-search="@Model.Search">Pendientes <span class="count">@Model.TotalPendientes</span></a>
+    <a class="@TabClass("reclamar") pill-danger" asp-action="Index" asp-route-estado="reclamar" asp-route-search="@Model.Search">Para reclamar <span class="count">@Model.ParaReclamar</span></a>
+    <a class="@TabClass("alertas") pill-warning" asp-action="Index" asp-route-estado="alertas" asp-route-search="@Model.Search">Alertas <span class="count">@Model.ConAlerta</span></a>
+    <a class="@TabClass("reclamados")" asp-action="Index" asp-route-estado="reclamados" asp-route-search="@Model.Search">Reclamados <span class="count">@Model.Reclamados</span></a>
+    <a class="@TabClass("enfalta")" asp-action="Index" asp-route-estado="enfalta" asp-route-search="@Model.Search">En falta <span class="count">@Model.EnFalta</span></a>
+    <a class="@TabClass("recibidos")" asp-action="Index" asp-route-estado="recibidos" asp-route-search="@Model.Search">Recibidos <span class="count">@Model.Recibidos</span></a>
+    <a class="@TabClass("anulados")" asp-action="Index" asp-route-estado="anulados" asp-route-search="@Model.Search">Anulados <span class="count">@Model.Anulados</span></a>
+</nav>
 
 <div class="card">
     <form method="get" class="flex flex-wrap" style="margin-bottom:16px">
-        <input type="text" name="search" value="@Model.Search" placeholder="Buscar por documento, proveedor, material o descripción…" style="max-width:420px" />
+        <input type="hidden" name="estado" value="@Model.Estado" />
+        <input type="search" name="search" value="@Model.Search" placeholder="Buscar por documento, proveedor, material, almacén o centro de coste…" style="max-width:420px" />
         <button type="submit" class="btn">Buscar</button>
         @if (!string.IsNullOrWhiteSpace(Model.Search))
         {
-            <a class="btn" asp-action="Index">Limpiar</a>
+            <a class="btn" asp-action="Index" asp-route-estado="@Model.Estado">Limpiar</a>
         }
         <span class="spacer"></span>
         <a class="btn btn-primary" asp-controller="Carga" asp-action="Index">Cargar Excel</a>
     </form>
 
-    @if (Model.Orders.Count == 0)
+    @if (Model.Rows.Count == 0)
     {
         <div class="empty-state">
-            No hay pedidos pendientes que mostrar.
-            <br />
-            <a asp-controller="Carga" asp-action="Index">Carga el Excel de SAP</a> para empezar.
+            No hay líneas que mostrar en esta pestaña.
+            @if (Model.TotalPendientes == 0 && Model.Estado == "pendientes")
+            {
+                <br />
+                <a asp-controller="Carga" asp-action="Index">Carga el Excel de SAP</a>
+            }
         </div>
     }
     else
@@ -62,48 +67,115 @@
                         <th>Material</th>
                         <th>Descripción</th>
                         <th>Proveedor</th>
-                        <th>Almacén</th>
+                        <th>Ubicación</th>
                         <th>Fecha</th>
-                        <th>Antigüedad</th>
+                        <th title="Días hábiles desde la fecha del pedido">Días</th>
                         <th>Por entregar</th>
                         <th>Estado</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var o in Model.Orders)
+                    @foreach (var r in Model.Rows)
                     {
-                        var dias = PedidosPendientes.Core.BusinessDays.CountBusinessDays(o.FechaDocumento, today);
-                        <tr>
+                        var o = r.Order;
+                        <tr class="@(r.Alerta == AlertaReclamacion.Llamar ? "row-llamar" : r.CriticidadNivel == "critico" ? "row-critico" : "")">
                             <td>@o.DocumentoCompras</td>
-                            <td>@o.Material</td>
-                            <td class="wrap">@o.TextoBreve</td>
-                            <td class="wrap">@o.ProveedorNombre</td>
-                            <td>@o.Almacen</td>
-                            <td>@o.FechaDocumento.ToString("dd/MM/yyyy")</td>
-                            <td>@dias d háb.</td>
-                            <td>@(o.PorEntregarCantidad?.ToString("0.##") ?? "—")</td>
                             <td>
-                                @if (o.EnFalta)
+                                @o.Material
+                                @if (r.Clase is not null)
                                 {
-                                    <span class="tag tag-missing">En falta</span>
-                                }
-                                else if (o.Reclamado)
-                                {
-                                    <span class="tag tag-claimed">Reclamado</span>
-                                }
-                                else
-                                {
-                                    <span class="tag tag-pending">Pendiente</span>
+                                    <span class="clase clase-@r.Clase.ToLowerInvariant()" title="Clase @r.Clase: se reclama según su prioridad">@r.Clase</span>
                                 }
                             </td>
+                            <td class="wrap">@o.TextoBreve</td>
+                            <td class="wrap">
+                                @o.ProveedorNombre
+                                @if (r.AcuerdoMarco)
+                                {
+                                    <span class="tag tag-am" title="Proveedor con acuerdo marco">AM</span>
+                                }
+                            </td>
+                            <td>
+                                @o.Almacen
+                                @if (o.CentroCoste is not null)
+                                {
+                                    <span class="muted">· @o.CentroCoste</span>
+                                }
+                                @if (r.CriticidadNivel is not null)
+                                {
+                                    <span class="tag tag-critico @(r.CriticidadNivel == "alto" ? "is-alto" : "")" title="Ubicación de criticidad @r.CriticidadNivel">
+                                        @(r.CriticidadDescripcion ?? "Crítico")
+                                    </span>
+                                }
+                            </td>
+                            <td>@o.FechaDocumento.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                <span class="@(r.FueraPlazo ? "text-danger" : "")" title="@(r.FueraPlazo ? "Fuera del plazo objetivo de entrega" : "Dentro del plazo objetivo")">
+                                    @r.DiasHabiles
+                                </span>
+                            </td>
+                            <td>@(o.PorEntregarCantidad?.ToString("0.##") ?? "—")</td>
+                            <td>
+                                @if (o.Anulado) { <span class="tag tag-pending">Anulado</span> }
+                                else if (o.Recibido) { <span class="tag tag-received">Recibido</span> }
+                                else if (o.EnFalta) { <span class="tag tag-missing">En falta</span> }
+                                else if (r.Alerta == AlertaReclamacion.Llamar) { <span class="tag tag-missing">☎ Llamar</span> }
+                                else if (r.Alerta == AlertaReclamacion.SinRespuesta) { <span class="tag tag-claimed">Sin respuesta</span> }
+                                else if (o.Reclamado) { <span class="tag tag-claimed">Reclamado ×@o.ReclamadoCount</span> }
+                                else if (r.Alerta == AlertaReclamacion.Reclamar) { <span class="tag tag-reclamar">Reclamar ya</span> }
+                                else { <span class="tag tag-pending">Pendiente</span> }
+                            </td>
+                            <td class="actions">
+                                    @if (!o.Recibido && !o.Anulado)
+                                    {
+                                        <form method="post" asp-action="Reclamar" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="icon-btn" title="@(o.Reclamado ? "Volver a reclamar" : "Marcar como reclamado")">📢</button>
+                                        </form>
+                                        <form method="post" asp-action="Recibir" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="icon-btn" title="Marcar como recibido">✅</button>
+                                        </form>
+                                        @if (!o.EnFalta)
+                                        {
+                                            <form method="post" asp-action="EnFalta" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="icon-btn" title="Marcar en falta">⚠️</button>
+                                            </form>
+                                        }
+                                        <form method="post" asp-action="Anular" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search" data-confirm="¿Anular la línea @o.DocumentoCompras / @o.Material?">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="icon-btn" title="Anular línea">🚫</button>
+                                        </form>
+                                    }
+                                    else
+                                    {
+                                        <form method="post" asp-action="Reactivar" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="icon-btn" title="Devolver a pendientes">↩️</button>
+                                        </form>
+                                    }
+                                </td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
-        @if (Model.Orders.Count >= 500)
+        @if (Model.Truncado)
         {
             <p class="hint" style="margin-top:12px">Mostrando las primeras 500 líneas. Usa el buscador para acotar.</p>
         }
+        <details class="legend">
+            <summary>Leyenda de urgencia y alertas</summary>
+            <ul>
+                <li><span class="clase clase-a">A</span> / <span class="clase clase-b">B</span> / <span class="clase clase-c">C</span> — clase del material (parametriza el plazo de reclamación; se configura en Configuración y se carga por Excel).</li>
+                <li><span class="tag tag-reclamar">Reclamar ya</span> — pendiente sin reclamar que supera el plazo de su clase.</li>
+                <li><span class="tag tag-claimed">Sin respuesta</span> — reclamado sin respuesta del proveedor en el plazo configurado.</li>
+                <li><span class="tag tag-missing">☎ Llamar</span> — sin respuesta también al plazo extra: llamar por teléfono.</li>
+                <li><span class="tag tag-critico">UCI</span> — almacén/centro de coste crítico (prioridad máxima en la ordenación).</li>
+                <li><span class="tag tag-am">AM</span> — proveedor con acuerdo marco: el plazo contractual manda; los retrasos cuentan para penalización.</li>
+            </ul>
+        </details>
     }
 </div>

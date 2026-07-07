@@ -1,0 +1,118 @@
+@model SemaforoViewModel
+@{
+    ViewData["Title"] = "Semáforo MD04";
+    string TabClass(string f) => Model.Filtro == f ? "active" : "";
+}
+
+<h1 class="page-title">Semáforo NEXUS MD04</h1>
+<p class="page-sub">
+    Materiales de almacenaje bajo mínimo cruzados con los pedidos pendientes.
+    Lo importante: <strong>lo que está en rojo y no tiene pedido lanzado</strong>.
+    @if (Model.CargadoAt is not null)
+    {
+        <span>Cargado el @Model.CargadoAt.Value.LocalDateTime.ToString("dd/MM/yyyy HH:mm").</span>
+    }
+</p>
+
+@if (Model.CargadoAt is null)
+{
+    <div class="card">
+        <div class="empty-state">
+            Aún no se ha cargado el listado MD04 de NEXUS.
+            <br />
+            <a asp-controller="Carga" asp-action="Index">Cargar el Excel MD04</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="stats">
+        <a class="stat is-danger" asp-action="Index" asp-route-filtro="sinpedido">
+            <div class="label">🔴 Rojos sin pedido</div>
+            <div class="value">@Model.RojosSinPedido</div>
+        </a>
+        <a class="stat is-danger" asp-action="Index" asp-route-filtro="rojos">
+            <div class="label">🔴 Rojos en total</div>
+            <div class="value">@Model.Rojos</div>
+        </a>
+        <a class="stat is-warning" asp-action="Index" asp-route-filtro="todos">
+            <div class="label">🟡 Amarillos</div>
+            <div class="value">@Model.Amarillos</div>
+        </a>
+        <a class="stat is-success" asp-action="Index" asp-route-filtro="todos">
+            <div class="label">🟢 Verdes</div>
+            <div class="value">@Model.Verdes</div>
+        </a>
+    </div>
+
+    <nav class="pills" aria-label="Filtro del semáforo">
+        <a class="@TabClass("sinpedido") pill-danger" asp-action="Index" asp-route-filtro="sinpedido">Rojos sin pedido <span class="count">@Model.RojosSinPedido</span></a>
+        <a class="@TabClass("rojos")" asp-action="Index" asp-route-filtro="rojos">Todos los rojos <span class="count">@Model.Rojos</span></a>
+        <a class="@TabClass("todos")" asp-action="Index" asp-route-filtro="todos">Todo el listado <span class="count">@(Model.Rojos + Model.Amarillos + Model.Verdes)</span></a>
+    </nav>
+
+    <div class="card">
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="empty-state">
+                @(Model.Filtro == "sinpedido"
+                    ? "¡Bien! Todos los materiales en rojo tienen pedido lanzado."
+                    : "No hay materiales que mostrar con este filtro.")
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Material</th>
+                            <th>Descripción</th>
+                            <th>Almacén</th>
+                            <th>Stock</th>
+                            <th>Punto pedido</th>
+                            <th>Consumo medio</th>
+                            <th>Pedido lanzado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in Model.Rows)
+                        {
+                            var i = r.Item;
+                            <tr class="@(i.Semaforo == "rojo" && !r.TienePedido ? "row-llamar" : "")">
+                                <td><span class="dot dot-@i.Semaforo" title="@i.Semaforo"></span></td>
+                                <td>@i.Material</td>
+                                <td class="wrap">@i.TextoBreve</td>
+                                <td>@i.Almacen</td>
+                                <td>@(i.Stock?.ToString("0.##") ?? "—")</td>
+                                <td>@(i.PuntoPedido?.ToString("0.##") ?? "—")</td>
+                                <td>@(i.ConsumoMedio?.ToString("0.##") ?? "—")</td>
+                                <td>
+                                    @if (r.TienePedido)
+                                    {
+                                        foreach (var ped in r.PedidosPendientes.Take(3))
+                                        {
+                                            <div>
+                                                <a asp-controller="Orders" asp-action="Index" asp-route-search="@ped.DocumentoCompras">@ped.DocumentoCompras</a>
+                                                <span class="muted">(@ped.FechaDocumento.ToString("dd/MM/yy")@(ped.Reclamado ? ", reclamado" : ""))</span>
+                                            </div>
+                                        }
+                                        if (r.PedidosPendientes.Count > 3)
+                                        {
+                                            <span class="muted">y @(r.PedidosPendientes.Count - 3) más…</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="tag tag-missing">SIN PEDIDO</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}

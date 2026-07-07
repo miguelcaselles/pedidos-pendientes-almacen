@@ -27,6 +27,17 @@ public class Proveedor
 
     public bool Activo { get; set; } = true;
 
+    // --- Acuerdo marco / cumplimiento ---
+
+    /// <summary>Proveedor sujeto a acuerdo marco (con plazo de entrega contractual).</summary>
+    public bool AcuerdoMarco { get; set; }
+
+    /// <summary>Plazo de entrega contractual en días hábiles (null = plazo por defecto de configuración).</summary>
+    public int? PlazoEntregaDias { get; set; }
+
+    /// <summary>Anotaciones sobre incumplimientos / penalizaciones aplicadas.</summary>
+    public string? NotasPenalizacion { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

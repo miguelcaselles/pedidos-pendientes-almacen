@@ -53,19 +53,37 @@ Implementado:
 
 - Dominio adaptado a almacén (clave única **Documento + Material**; campos nuevos:
   Expediente administrativo, Tipo de imputación, Almacén).
-- Base de datos SQL Server con EF Core (migración inicial).
-- Importación de Excel **no destructiva** (conserva el estado de gestión) con
-  detección dinámica de columnas y deduplicación de filas idénticas.
-- Listado de pedidos pendientes con indicadores y búsqueda.
-- Estética institucional (logo HUF + paleta corporativa, CSS plano).
+- Base de datos SQL Server con EF Core (migraciones `InitialCreate` y `MejorasOperativas`).
+- **Panel de control**: alertas de reclamación, riesgo de retraso (% pendientes fuera
+  de plazo + probabilidad histórica), incidencias por mes, estado de subida de los
+  tres ficheros y resumen del semáforo MD04.
+- **Cargas de Excel** (con registro y estado de subida visible):
+  - Pedidos pendientes de SAP — **no destructiva** (conserva el estado de gestión),
+    detección dinámica de columnas y deduplicación.
+  - **Semáforo MD04 de NEXUS** — instantánea del día; cruza materiales en rojo con
+    los pedidos para destacar los que **no tienen pedido lanzado**.
+  - **Clasificación A/B/C por código NEXUS** — parametriza la urgencia de reclamación.
+- **Pedidos**: pestañas (pendientes / para reclamar / alertas / reclamados / en falta /
+  recibidos / anulados), acciones por línea (reclamar, recibir, en falta, anular,
+  reactivar), badges de clase A/B/C, criticidad de ubicación y acuerdo marco,
+  ordenación por prioridad (alerta > criticidad > riesgo).
+- **Alertas de seguimiento**: reclamado sin respuesta del proveedor a los N días
+  (configurable) y, pasados N días más, "para llamar por teléfono".
+- **Proveedores**: contacto, **acuerdo marco** con plazo contractual, pendientes fuera
+  de plazo (base para penalizaciones) y notas de penalización.
+- **Configuración**: plazos por clase A/B/C, plazos de respuesta/llamada, plazo de
+  acuerdo marco, aviso de carga obsoleta y **ubicaciones críticas** (almacén /
+  centro de coste, p. ej. UCI) que priorizan sus pedidos.
+- Estética institucional (logo HUF + paleta corporativa, CSS plano, sin dependencias JS).
 - Cabeceras de seguridad.
 
 Pendiente (siguientes fases):
 
-- Acciones de estado (recibir, anular, en falta, comentarios) y pestañas
-  Recibidos / Anulados / Historial.
-- Gestión de proveedores e importación del catálogo (L025).
-- Reclamación por email (MailKit) + formulario de respuesta del proveedor firmado.
-- Indicadores / estadísticas y exportación.
+- Reclamación por email (MailKit) + formulario de respuesta del proveedor firmado
+  (las alertas de "sin respuesta" ya leen la tabla `ProviderResponses`).
+- Importación del catálogo de proveedores (L025) con emails.
+- Consumos por material/almacén (a falta de definir la fuente de datos; el MD04 ya
+  admite una columna de consumo medio que se muestra en el semáforo).
+- Exportación a Excel de los listados.
 - Autenticación Active Directory / SSO corporativo.
 - Tareas programadas (BackgroundService).

@@ -64,6 +64,7 @@ public class Order
     public int ReclamadoCount { get; set; }
 
     public bool EnFalta { get; set; }
+    public DateTimeOffset? EnFaltaAt { get; set; }
     public bool PausaReclamacion { get; set; }
 
     public bool Anulado { get; set; }

@@ -1,30 +1,112 @@
+@model CargaViewModel
 @{
     ViewData["Title"] = "Cargar Excel";
+
+    string Cuando(PedidosPendientes.Core.Entities.UploadLog? u)
+        => u is null ? "Nunca" : u.At.LocalDateTime.ToString("dd/MM/yyyy HH:mm");
 }
 
-<h1 class="page-title">Cargar Excel de pedidos pendientes</h1>
-<p class="page-sub">Sube la exportación de SAP del almacén. La actualización es no destructiva: conserva el estado de gestión ya registrado (recibido, reclamado, anulado, comentarios).</p>
+<h1 class="page-title">Cargas de archivos</h1>
+<p class="page-sub">
+    Los tres listados que alimentan la aplicación. Las columnas se detectan
+    automáticamente por su cabecera; solo se admiten Excel (.xlsx).
+</p>
 
-<div class="card">
-    <h2>Seleccionar archivo</h2>
-    <p class="hint">Formato admitido: Excel (.xlsx). Las columnas se detectan automáticamente por su cabecera.</p>
+<div class="grid-3">
+    <div class="card">
+        <h2>1 · Pedidos pendientes (SAP)</h2>
+        <p class="hint">
+            Exportación de pedidos pendientes del almacén. Carga <strong>no destructiva</strong>:
+            conserva recibido, reclamado, anulado y comentarios.
+        </p>
+        <p class="upload-status">
+            Última carga: <strong>@Cuando(Model.UltimaPedidos)</strong>
+            @if (Model.UltimaPedidos is not null)
+            {
+                <span class="muted">(@Model.UltimaPedidos.FileName, @Model.UltimaPedidos.Filas filas)</span>
+            }
+        </p>
+        <form asp-action="Pedidos" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <div class="form-row">
+                <input type="file" name="archivo" accept=".xlsx,.xlsm" required aria-label="Excel de pedidos" />
+            </div>
+            <button type="submit" class="btn btn-primary">Cargar pedidos</button>
+        </form>
+    </div>
 
-    <form asp-controller="Carga" asp-action="Index" method="post" enctype="multipart/form-data">
-        @Html.AntiForgeryToken()
-        <div class="form-row">
-            <label for="archivo">Archivo Excel</label>
-            <input type="file" id="archivo" name="archivo" accept=".xlsx,.xlsm" required />
+    <div class="card">
+        <h2>2 · Semáforo MD04 (NEXUS)</h2>
+        <p class="hint">
+            Listado de necesidades de almacenaje. Cada carga <strong>sustituye</strong> la
+            anterior (es la foto del día). Alimenta la pestaña Semáforo.
+        </p>
+        <p class="upload-status">
+            Última carga: <strong>@Cuando(Model.UltimaMd04)</strong>
+            @if (Model.UltimaMd04 is not null)
+            {
+                <span class="muted">(@Model.UltimaMd04.FileName, @Model.UltimaMd04.Filas filas)</span>
+            }
+        </p>
+        <form asp-action="Md04" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <div class="form-row">
+                <input type="file" name="archivo" accept=".xlsx,.xlsm" required aria-label="Excel MD04" />
+            </div>
+            <button type="submit" class="btn btn-primary">Cargar MD04</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>3 · Clasificación A/B/C</h2>
+        <p class="hint">
+            Listado de urgencia por código NEXUS (columnas: material y clase A/B/C).
+            Parametriza los plazos de reclamación. Carga acumulativa.
+        </p>
+        <p class="upload-status">
+            Última carga: <strong>@Cuando(Model.UltimaAbc)</strong>
+            @if (Model.UltimaAbc is not null)
+            {
+                <span class="muted">(@Model.UltimaAbc.FileName, @Model.UltimaAbc.Filas filas)</span>
+            }
+        </p>
+        <form asp-action="Clasificacion" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <div class="form-row">
+                <input type="file" name="archivo" accept=".xlsx,.xlsm" required aria-label="Excel de clasificación ABC" />
+            </div>
+            <button type="submit" class="btn btn-primary">Cargar clasificación</button>
+        </form>
+    </div>
+</div>
+
+@if (Model.Historial.Count > 0)
+{
+    <div class="card">
+        <h2>Historial de cargas</h2>
+        <div class="table-wrap" style="margin-top:12px">
+            <table class="data">
+                <thead>
+                    <tr><th>Fecha</th><th>Tipo</th><th>Archivo</th><th>Resultado</th><th>Detalle</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in Model.Historial)
+                    {
+                        <tr>
+                            <td>@u.At.LocalDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>
+                                @(u.Tipo switch { "md04" => "MD04", "abc" => "Clasificación ABC", _ => "Pedidos" })
+                            </td>
+                            <td class="wrap">@u.FileName</td>
+                            <td>
+                                @if (u.Success) { <span class="tag tag-received">OK</span> }
+                                else { <span class="tag tag-missing">Error</span> }
+                            </td>
+                            <td class="wrap">@u.Message</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
-        <button type="submit" class="btn btn-primary">Cargar pedidos</button>
-    </form>
-</div>
-
-<div class="card">
-    <h2>¿Qué columnas espera?</h2>
-    <p class="hint mb-0">
-        Documento de compras · Nº de expediente administrativo · Centro de coste · Material ·
-        Tipo de imputación · Texto breve · Nº material de proveedor · Fecha documento ·
-        Historial pedido · Proveedor/Centro suministrador · Referencia del proveedor ·
-        Almacén · Por entregar (cantidad).
-    </p>
-</div>
+    </div>
+}

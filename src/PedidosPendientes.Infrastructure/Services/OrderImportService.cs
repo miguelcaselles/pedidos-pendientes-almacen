@@ -24,7 +24,7 @@ public class OrderImportService : IOrderImportService
         _log = log;
     }
 
-    public async Task<UploadResult> ImportAsync(Stream xlsx, CancellationToken ct = default)
+    public async Task<UploadResult> ImportAsync(Stream xlsx, string fileName, CancellationToken ct = default)
     {
         List<ParsedOrder> parsed;
         try
@@ -34,11 +34,11 @@ public class OrderImportService : IOrderImportService
         catch (Exception ex)
         {
             _log.LogError(ex, "Error al parsear el Excel de pedidos");
-            return new UploadResult { Success = false, Message = "El archivo no se pudo leer. Verifica que es el Excel de pedidos pendientes correcto." };
+            return await LogAsync(fileName, new UploadResult { Success = false, Message = "El archivo no se pudo leer. Verifica que es el Excel de pedidos pendientes correcto." }, ct);
         }
 
         if (parsed.Count == 0)
-            return new UploadResult { Success = false, Message = "El archivo no contiene filas de pedidos válidas." };
+            return await LogAsync(fileName, new UploadResult { Success = false, Message = "El archivo no contiene filas de pedidos válidas." }, ct);
 
         // Deduplicar filas con la misma clave (Documento+Material): SAP puede exportar
         // líneas idénticas repetidas. Nos quedamos con la primera ocurrencia.
@@ -117,14 +117,32 @@ public class OrderImportService : IOrderImportService
         _log.LogInformation("Importación de pedidos: {Insertados} nuevos, {Actualizados} actualizados, {Dups} duplicados descartados",
             insertados, actualizados, descartadasPorDuplicado);
 
-        return new UploadResult
+        return await LogAsync(fileName, new UploadResult
         {
             Success = true,
             TotalParsed = parsed.Count,
             Insertados = insertados,
             Actualizados = actualizados,
             Message = msg,
-        };
+        }, ct);
+    }
+
+    /// <summary>Deja constancia de la carga en UploadLogs (estado de subida visible en la app).</summary>
+    private async Task<UploadResult> LogAsync(string fileName, UploadResult r, CancellationToken ct)
+    {
+        _db.UploadLogs.Add(new UploadLog
+        {
+            Tipo = "pedidos",
+            FileName = fileName,
+            Success = r.Success,
+            Filas = r.TotalParsed,
+            Insertados = r.Insertados,
+            Actualizados = r.Actualizados,
+            Message = r.Message,
+            At = DateTimeOffset.UtcNow,
+        });
+        await _db.SaveChangesAsync(ct);
+        return r;
     }
 
     /// <summary>Crea proveedores que aparecen en el Excel pero aún no existen (sin email; quedan "incompletos").</summary>

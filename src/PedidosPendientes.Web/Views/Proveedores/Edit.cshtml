@@ -1,0 +1,56 @@
+@model ProveedorEditViewModel
+@{
+    ViewData["Title"] = $"Proveedor {Model.Nombre}";
+}
+
+<h1 class="page-title">@Model.Nombre</h1>
+<p class="page-sub">Código @Model.Codigo</p>
+
+<div class="card" style="max-width:640px">
+    <form method="post" asp-action="Edit">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Id" />
+
+        <div class="form-row">
+            <label asp-for="Email">Email de reclamación</label>
+            <input type="email" asp-for="Email" placeholder="pedidos@proveedor.es" />
+            <p class="hint mb-0" style="margin-top:4px">Imprescindible para reclamar por correo.</p>
+        </div>
+
+        <div class="form-row">
+            <label asp-for="Telefono">Teléfono</label>
+            <input type="text" asp-for="Telefono" />
+        </div>
+
+        <fieldset class="form-fieldset">
+            <legend>Acuerdo marco</legend>
+            <div class="form-row">
+                <label class="checkbox-inline">
+                    <input type="checkbox" asp-for="AcuerdoMarco" />
+                    Proveedor sujeto a acuerdo marco
+                </label>
+            </div>
+            <div class="form-row">
+                <label asp-for="PlazoEntregaDias">Plazo de entrega contractual (días hábiles)</label>
+                <input type="number" asp-for="PlazoEntregaDias" min="1" max="120" style="max-width:120px" />
+                <p class="hint mb-0" style="margin-top:4px">Vacío = plazo por defecto de Configuración.</p>
+            </div>
+            <div class="form-row">
+                <label asp-for="NotasPenalizacion">Incumplimientos / penalizaciones</label>
+                <textarea asp-for="NotasPenalizacion" rows="4" placeholder="p. ej. 12/06/2026: aviso formal por retraso reiterado en el expediente X…"></textarea>
+            </div>
+        </fieldset>
+
+        <div class="form-row">
+            <label class="checkbox-inline">
+                <input type="checkbox" asp-for="Activo" />
+                Activo
+            </label>
+        </div>
+
+        <div class="flex">
+            <button type="submit" class="btn btn-primary">Guardar</button>
+            <a class="btn" asp-action="Index">Cancelar</a>
+        </div>
+    </form>
+</div>

@@ -1,0 +1,215 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Panel de control";
+    var maxIncidencias = Math.Max(1, Model.IncidenciasPorMes.Count == 0 ? 1 : Model.IncidenciasPorMes.Max(m => m.Total));
+}
+
+<h1 class="page-title">Panel de control</h1>
+<p class="page-sub">Visión general del seguimiento de pedidos pendientes del almacén.</p>
+
+@if (Model.CargaPedidosObsoleta)
+{
+    <div class="alert alert-warning">
+        <strong>Datos posiblemente desactualizados:</strong>
+        @if (Model.UltimaPedidos is null)
+        {
+            <text>aún no se ha cargado ningún Excel de pedidos.</text>
+        }
+        else
+        {
+            <text>el último Excel de pedidos se cargó el @Model.UltimaPedidos.At.LocalDateTime.ToString("dd/MM/yyyy HH:mm") (hace más de @Model.DiasAvisoCarga días).</text>
+        }
+        <a asp-controller="Carga" asp-action="Index">Cargar ahora</a>.
+    </div>
+}
+
+<div class="stats">
+    <a class="stat is-primary" asp-controller="Orders" asp-action="Index">
+        <div class="label">Pendientes</div>
+        <div class="value">@Model.TotalPendientes</div>
+    </a>
+    <a class="stat is-danger" asp-controller="Orders" asp-action="Index" asp-route-estado="reclamar">
+        <div class="label">Para reclamar</div>
+        <div class="value">@Model.ParaReclamar</div>
+    </a>
+    <a class="stat is-warning" asp-controller="Orders" asp-action="Index" asp-route-estado="alertas">
+        <div class="label">Sin respuesta</div>
+        <div class="value">@Model.SinRespuesta</div>
+    </a>
+    <a class="stat is-danger" asp-controller="Orders" asp-action="Index" asp-route-estado="alertas">
+        <div class="label">Para llamar ☎</div>
+        <div class="value">@Model.ParaLlamar</div>
+    </a>
+    <a class="stat is-success" asp-controller="Orders" asp-action="Index" asp-route-estado="recibidos">
+        <div class="label">Recibidos hoy</div>
+        <div class="value">@Model.RecibidosHoy</div>
+    </a>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h2>Riesgo de retraso</h2>
+        <p class="hint">Probabilidad de que un pedido tarde más de lo necesario.</p>
+        <div class="risk-row">
+            <div class="risk-item">
+                <div class="risk-value @(Model.PorcentajeFueraPlazo >= 30 ? "text-danger" : Model.PorcentajeFueraPlazo >= 15 ? "text-warning" : "text-success")">
+                    @Model.PorcentajeFueraPlazo.ToString("0")%
+                </div>
+                <div class="risk-label">de los pendientes ya está fuera de plazo</div>
+            </div>
+            <div class="risk-item">
+                @if (Model.ProbabilidadRetrasoHistorica is double prob)
+                {
+                    <div class="risk-value @(prob >= 30 ? "text-danger" : prob >= 15 ? "text-warning" : "text-success")">@prob.ToString("0")%</div>
+                    <div class="risk-label">de los últimos @Model.MuestraHistorica recibidos llegó tarde (histórico)</div>
+                }
+                else
+                {
+                    <div class="risk-value muted">—</div>
+                    <div class="risk-label">sin histórico de recepciones todavía</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Incidencias por mes</h2>
+        <p class="hint">Líneas marcadas en falta + respuestas problemáticas del proveedor (en falta, anulado, no localizado).</p>
+        <div class="barchart" role="img" aria-label="Incidencias mensuales de los últimos 6 meses">
+            @foreach (var m in Model.IncidenciasPorMes)
+            {
+                var h = (int)Math.Round(100.0 * m.Total / maxIncidencias);
+                <div class="barchart-col" title="@m.Etiqueta: @m.Total incidencias (@m.EnFalta en falta, @m.RespuestasProblema respuestas)">
+                    <div class="barchart-value">@(m.Total > 0 ? m.Total.ToString() : "")</div>
+                    <div class="barchart-bar" style="height:@(Math.Max(h, m.Total > 0 ? 6 : 2))%"></div>
+                    <div class="barchart-label">@m.Etiqueta</div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <div class="flex">
+            <h2 class="mb-0">Semáforo NEXUS MD04</h2>
+            <span class="spacer"></span>
+            <a class="btn btn-sm" asp-controller="Semaforo" asp-action="Index">Ver semáforo</a>
+        </div>
+        @if (Model.Md04CargadoAt is null)
+        {
+            <p class="hint mb-0" style="margin-top:12px">Aún no se ha cargado el listado MD04. <a asp-controller="Carga" asp-action="Index">Cargar ahora</a>.</p>
+        }
+        else
+        {
+            <p class="hint">Cargado el @Model.Md04CargadoAt.Value.LocalDateTime.ToString("dd/MM/yyyy HH:mm").</p>
+            <div class="semaforo-resumen">
+                <div class="semaforo-chip @(Model.Md04RojosSinPedido > 0 ? "is-danger" : "is-success")">
+                    <span class="dot dot-rojo"></span>
+                    <strong>@Model.Md04RojosSinPedido</strong>&nbsp;en rojo <u>sin pedido lanzado</u>
+                </div>
+                <div class="semaforo-chip">
+                    <span class="dot dot-rojo"></span>
+                    <strong>@Model.Md04Rojos</strong>&nbsp;en rojo en total
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="card">
+        <h2>Estado de subida de archivos</h2>
+        <table class="mini">
+            <tbody>
+            <tr>
+                <td>Pedidos pendientes (SAP)</td>
+                <td>
+                    @if (Model.UltimaPedidos is null) { <span class="tag tag-missing">Nunca</span> }
+                    else if (Model.CargaPedidosObsoleta) { <span class="tag tag-claimed">@Model.UltimaPedidos.At.LocalDateTime.ToString("dd/MM HH:mm")</span> }
+                    else { <span class="tag tag-received">@Model.UltimaPedidos.At.LocalDateTime.ToString("dd/MM HH:mm")</span> }
+                </td>
+            </tr>
+            <tr>
+                <td>Semáforo MD04 (NEXUS)</td>
+                <td>
+                    @if (Model.UltimaMd04 is null) { <span class="tag tag-missing">Nunca</span> }
+                    else { <span class="tag tag-received">@Model.UltimaMd04.At.LocalDateTime.ToString("dd/MM HH:mm")</span> }
+                </td>
+            </tr>
+            <tr>
+                <td>Clasificación A/B/C</td>
+                <td>
+                    @if (Model.UltimaAbc is null) { <span class="tag tag-missing">Nunca</span> }
+                    else { <span class="tag tag-received">@Model.UltimaAbc.At.LocalDateTime.ToString("dd/MM HH:mm")</span> }
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <p class="hint mb-0" style="margin-top:10px"><a asp-controller="Carga" asp-action="Index">Ir a cargas →</a></p>
+    </div>
+</div>
+
+@if (Model.AlertasTop.Count > 0)
+{
+    <div class="card">
+        <div class="flex">
+            <h2 class="mb-0">Alertas de reclamación más urgentes</h2>
+            <span class="spacer"></span>
+            <a class="btn btn-sm" asp-controller="Orders" asp-action="Index" asp-route-estado="alertas">Ver todas</a>
+        </div>
+        <div class="table-wrap" style="margin-top:12px">
+            <table class="data">
+                <thead>
+                <tr><th>Alerta</th><th>Documento</th><th>Material</th><th>Descripción</th><th>Proveedor</th><th>Días</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var r in Model.AlertasTop)
+                {
+                    <tr>
+                        <td>
+                            @if (r.Alerta == PedidosPendientes.Core.AlertaReclamacion.Llamar) { <span class="tag tag-missing">☎ Llamar</span> }
+                            else if (r.Alerta == PedidosPendientes.Core.AlertaReclamacion.SinRespuesta) { <span class="tag tag-claimed">Sin respuesta</span> }
+                            else { <span class="tag tag-reclamar">Reclamar</span> }
+                            @if (r.CriticidadNivel == "critico") { <span class="tag tag-critico" title="Ubicación crítica">@(r.CriticidadDescripcion ?? "Crítico")</span> }
+                        </td>
+                        <td>@r.Order.DocumentoCompras</td>
+                        <td>@r.Order.Material @if (r.Clase is not null) { <span class="clase clase-@r.Clase.ToLowerInvariant()">@r.Clase</span> }</td>
+                        <td class="wrap">@r.Order.TextoBreve</td>
+                        <td class="wrap">@r.Order.ProveedorNombre</td>
+                        <td>@r.DiasHabiles d</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@if (Model.AcuerdoMarcoIncumplimientos.Count > 0)
+{
+    <div class="card">
+        <div class="flex">
+            <h2 class="mb-0">Acuerdo marco: proveedores fuera de plazo</h2>
+            <span class="spacer"></span>
+            <a class="btn btn-sm" asp-controller="Proveedores" asp-action="Index" asp-route-am="true">Ver proveedores</a>
+        </div>
+        <p class="hint">Pedidos pendientes que superan el plazo contractual. Base para valorar penalizaciones.</p>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>Proveedor</th><th>Plazo</th><th>Fuera de plazo</th><th>Pendientes</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var pr in Model.AcuerdoMarcoIncumplimientos)
+                {
+                    <tr>
+                        <td class="wrap">@pr.Nombre <span class="muted">(@pr.Codigo)</span></td>
+                        <td>@pr.PlazoDias d háb.</td>
+                        <td><span class="tag tag-missing">@pr.PendientesFueraPlazo</span></td>
+                        <td>@pr.PendientesTotales</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

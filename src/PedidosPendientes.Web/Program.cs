@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using PedidosPendientes.Infrastructure;
 using PedidosPendientes.Infrastructure.Data;
+using PedidosPendientes.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddScoped<PedidosOverviewService>();
 
 var app = builder.Build();
 

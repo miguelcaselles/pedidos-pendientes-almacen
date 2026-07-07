@@ -1,19 +1,15 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Spreadsheet;
 using PedidosPendientes.Core.Abstractions;
 using PedidosPendientes.Core.Dtos;
 
 namespace PedidosPendientes.Infrastructure.Excel;
 
 /// <summary>
-/// Parser del Excel de pedidos pendientes del almacén usando DocumentFormat.OpenXml
-/// en modo lectura por streaming (SAX). Es robusto ante ficheros reales de SAP que
-/// incrustan imágenes/logos (que rompen otras librerías). Detecta las columnas por
-/// cabecera (tolerante a mayúsculas, acentos y abreviaturas) y, si no las reconoce,
-/// usa un mapa posicional de respaldo con el orden conocido del fichero de almacén.
+/// Parser del Excel de pedidos pendientes del almacén (lectura SAX compartida en
+/// <see cref="ExcelSax"/>). Detecta las columnas por cabecera (tolerante a mayúsculas,
+/// acentos y abreviaturas) y, si no las reconoce, usa un mapa posicional de respaldo
+/// con el orden conocido del fichero de almacén.
 /// </summary>
 public partial class ExcelOrderParser : IExcelOrderParser
 {
@@ -55,101 +51,42 @@ public partial class ExcelOrderParser : IExcelOrderParser
 
     public IReadOnlyList<ParsedOrder> Parse(Stream xlsx)
     {
-        using var doc = SpreadsheetDocument.Open(xlsx, false);
-        var wbPart = doc.WorkbookPart;
-        if (wbPart?.Workbook is null) return [];
+        var rows = ExcelSax.ReadAllRows(xlsx);
+        if (rows.Count == 0) return [];
 
-        var sheet = wbPart.Workbook.Descendants<Sheet>().FirstOrDefault();
-        if (sheet?.Id?.Value is null) return [];
+        var map = DetectColumns(rows[0]);
+        if (!map.TryGetValue("documentoCompras", out var docCol)) return [];
 
-        var wsPart = (WorksheetPart)wbPart.GetPartById(sheet.Id!.Value);
-        var sst = wbPart.SharedStringTablePart?.SharedStringTable;
-
-        // 1ª pasada: leer la primera fila (cabeceras) y construir el mapa de columnas.
-        Dictionary<string, int>? map = null;
         var result = new List<ParsedOrder>();
-
-        using var reader = OpenXmlReader.Create(wsPart);
-        while (reader.Read())
+        foreach (var cells in rows.Skip(1))
         {
-            if (reader.ElementType != typeof(Row)) continue;
-
-            var cells = ReadRowCells((Row)reader.LoadCurrentElement()!, sst);
-
-            if (map is null)
-            {
-                map = DetectColumns(cells);
-                continue; // la primera fila es la cabecera
-            }
-
-            if (!map.TryGetValue("documentoCompras", out var docCol)) return [];
-            var doc0 = Get(cells, docCol).Trim();
+            var doc0 = ExcelSax.Get(cells, docCol).Trim();
             if (string.IsNullOrEmpty(doc0)) continue;
 
-            var rawProveedor = Get(cells, Idx(map, "proveedor")).Trim();
+            var rawProveedor = ExcelSax.Get(cells, Idx(map, "proveedor")).Trim();
             var (provCodigo, provNombre) = SplitProveedor(rawProveedor);
-            var historial = Get(cells, Idx(map, "historialEntrega")).Trim();
+            var historial = ExcelSax.Get(cells, Idx(map, "historialEntrega")).Trim();
 
             result.Add(new ParsedOrder
             {
                 DocumentoCompras = doc0,
-                ExpedienteAdministrativo = NullIfEmpty(Get(cells, Idx(map, "expedienteAdministrativo"))),
-                CentroCoste = NullIfEmpty(Get(cells, Idx(map, "centroCoste"))),
-                Material = Get(cells, Idx(map, "material")).Trim(),
-                TipoImputacion = NullIfEmpty(Get(cells, Idx(map, "tipoImputacion"))),
-                TextoBreve = NullIfEmpty(Get(cells, Idx(map, "textoBreve"))),
-                NumMaterialProveedor = NullIfEmpty(Get(cells, Idx(map, "numMaterialProveedor"))),
-                FechaDocumento = ParseDate(Get(cells, Idx(map, "fechaDocumento"))),
+                ExpedienteAdministrativo = ExcelSax.NullIfEmpty(ExcelSax.Get(cells, Idx(map, "expedienteAdministrativo"))),
+                CentroCoste = ExcelSax.NullIfEmpty(ExcelSax.Get(cells, Idx(map, "centroCoste"))),
+                Material = ExcelSax.Get(cells, Idx(map, "material")).Trim(),
+                TipoImputacion = ExcelSax.NullIfEmpty(ExcelSax.Get(cells, Idx(map, "tipoImputacion"))),
+                TextoBreve = ExcelSax.NullIfEmpty(ExcelSax.Get(cells, Idx(map, "textoBreve"))),
+                NumMaterialProveedor = ExcelSax.NullIfEmpty(ExcelSax.Get(cells, Idx(map, "numMaterialProveedor"))),
+                FechaDocumento = ParseDate(ExcelSax.Get(cells, Idx(map, "fechaDocumento"))),
                 TieneHistorialEntrega = historial.Length > 0,
                 ProveedorCodigo = provCodigo,
                 ProveedorNombre = provNombre,
-                ReferenciaProveedor = NullIfEmpty(Get(cells, Idx(map, "referenciaProveedor"))),
-                Almacen = NullIfEmpty(Get(cells, Idx(map, "almacen"))),
-                PorEntregarCantidad = ParseDecimal(Get(cells, Idx(map, "porEntregarCantidad"))),
+                ReferenciaProveedor = ExcelSax.NullIfEmpty(ExcelSax.Get(cells, Idx(map, "referenciaProveedor"))),
+                Almacen = ExcelSax.NullIfEmpty(ExcelSax.Get(cells, Idx(map, "almacen"))),
+                PorEntregarCantidad = ExcelSax.ParseDecimal(ExcelSax.Get(cells, Idx(map, "porEntregarCantidad"))),
             });
         }
 
         return result;
-    }
-
-    /// <summary>Lee una fila a un array indexado por columna (0-based), respetando huecos.</summary>
-    private static List<string> ReadRowCells(Row row, SharedStringTable? sst)
-    {
-        var values = new List<string>();
-        foreach (var cell in row.Elements<Cell>())
-        {
-            var colIndex = ColumnIndexFromRef(cell.CellReference?.Value);
-            while (values.Count <= colIndex) values.Add(string.Empty);
-            values[colIndex] = GetCellText(cell, sst);
-        }
-        return values;
-    }
-
-    private static string GetCellText(Cell cell, SharedStringTable? sst)
-    {
-        var raw = cell.CellValue?.InnerText ?? string.Empty;
-        if (cell.DataType?.Value == CellValues.SharedString && sst is not null)
-        {
-            if (int.TryParse(raw, out var idx) && idx >= 0 && idx < sst.ChildElements.Count)
-                return sst.ElementAt(idx).InnerText;
-        }
-        if (cell.DataType?.Value == CellValues.InlineString)
-            return cell.InlineString?.Text?.Text ?? cell.InnerText;
-        return raw;
-    }
-
-    /// <summary>Convierte "C3" -> 2 (0-based). Ignora la parte numérica.</summary>
-    private static int ColumnIndexFromRef(string? cellRef)
-    {
-        if (string.IsNullOrEmpty(cellRef)) return 0;
-        int col = 0;
-        foreach (var ch in cellRef)
-        {
-            if (ch is >= 'A' and <= 'Z') col = col * 26 + (ch - 'A' + 1);
-            else if (ch is >= 'a' and <= 'z') col = col * 26 + (ch - 'a' + 1);
-            else break;
-        }
-        return col - 1;
     }
 
     private static Dictionary<string, int> DetectColumns(List<string> headerCells)
@@ -171,15 +108,6 @@ public partial class ExcelOrderParser : IExcelOrderParser
 
     private static int Idx(Dictionary<string, int> map, string field)
         => map.TryGetValue(field, out var i) ? i : -1;
-
-    private static string Get(List<string> cells, int idx)
-        => idx >= 0 && idx < cells.Count ? cells[idx] : string.Empty;
-
-    private static string? NullIfEmpty(string s)
-    {
-        s = s.Trim();
-        return s.Length == 0 ? null : s;
-    }
 
     /// <summary>Separa "2000004761 BECTON DICKINSON, S.A." en (código, nombre).</summary>
     private static (string? codigo, string? nombre) SplitProveedor(string raw)
@@ -221,20 +149,6 @@ public partial class ExcelOrderParser : IExcelOrderParser
             return DateOnly.FromDateTime(eu);
 
         return today;
-    }
-
-    private static decimal? ParseDecimal(string s)
-    {
-        s = s.Trim();
-        if (string.IsNullOrEmpty(s)) return null;
-        // El valor crudo de OpenXML usa punto decimal (invariante).
-        if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d))
-            return d;
-        // Respaldo: formato europeo con coma decimal.
-        s = s.Replace(".", "", StringComparison.Ordinal).Replace(',', '.');
-        if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out d))
-            return d;
-        return null;
     }
 
     [GeneratedRegex(@"documento\s*compra", RegexOptions.IgnoreCase)]

@@ -12,6 +12,10 @@ public class AppDbContext : DbContext
     public DbSet<EmailLog> EmailLogs => Set<EmailLog>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<ProviderResponse> ProviderResponses => Set<ProviderResponse>();
+    public DbSet<UploadLog> UploadLogs => Set<UploadLog>();
+    public DbSet<StockMd04Item> StockMd04 => Set<StockMd04Item>();
+    public DbSet<MaterialClasificacion> MaterialClasificaciones => Set<MaterialClasificacion>();
+    public DbSet<CriticidadUbicacion> CriticidadUbicaciones => Set<CriticidadUbicacion>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -98,6 +102,51 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.CreatedAt).HasDatabaseName("IX_ProviderResponses_CreatedAt");
             e.HasIndex(x => x.RevisionEstado).HasDatabaseName("IX_ProviderResponses_Revision");
         });
+
+        b.Entity<UploadLog>(e =>
+        {
+            e.ToTable("UploadLogs");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Tipo).HasMaxLength(20).IsRequired();
+            e.Property(x => x.FileName).HasMaxLength(255).IsRequired();
+            e.Property(x => x.Message).HasMaxLength(500);
+            e.HasIndex(x => new { x.Tipo, x.At }).HasDatabaseName("IX_UploadLogs_Tipo_At");
+        });
+
+        b.Entity<StockMd04Item>(e =>
+        {
+            e.ToTable("StockMd04");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Material).HasMaxLength(30).IsRequired();
+            e.Property(x => x.TextoBreve).HasMaxLength(255);
+            e.Property(x => x.Almacen).HasMaxLength(20);
+            e.Property(x => x.Semaforo).HasMaxLength(10).IsRequired();
+            e.Property(x => x.Stock).HasColumnType("decimal(12,2)");
+            e.Property(x => x.PuntoPedido).HasColumnType("decimal(12,2)");
+            e.Property(x => x.ConsumoMedio).HasColumnType("decimal(12,2)");
+            e.HasIndex(x => x.Material).HasDatabaseName("IX_StockMd04_Material");
+            e.HasIndex(x => x.Semaforo).HasDatabaseName("IX_StockMd04_Semaforo");
+        });
+
+        b.Entity<MaterialClasificacion>(e =>
+        {
+            e.ToTable("MaterialClasificaciones");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Material).HasMaxLength(30).IsRequired();
+            e.Property(x => x.Clase).HasMaxLength(1).IsRequired();
+            e.HasIndex(x => x.Material).IsUnique().HasDatabaseName("UQ_MaterialClasificaciones_Material");
+        });
+
+        b.Entity<CriticidadUbicacion>(e =>
+        {
+            e.ToTable("CriticidadUbicaciones");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Tipo).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Codigo).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Descripcion).HasMaxLength(200);
+            e.Property(x => x.Nivel).HasMaxLength(10).IsRequired();
+            e.HasIndex(x => new { x.Tipo, x.Codigo }).IsUnique().HasDatabaseName("UQ_CriticidadUbicaciones_Tipo_Codigo");
+        });
     }
 
     public override int SaveChanges()
@@ -133,6 +182,12 @@ public class AppDbContext : DbContext
                     break;
                 case AppSetting s:
                     s.UpdatedAt = now;
+                    break;
+                case MaterialClasificacion mc:
+                    mc.UpdatedAt = now;
+                    break;
+                case CriticidadUbicacion cu:
+                    if (entry.State == EntityState.Added) cu.CreatedAt = now;
                     break;
             }
         }

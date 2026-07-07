@@ -1,0 +1,96 @@
+@model ProveedoresViewModel
+@{
+    ViewData["Title"] = "Proveedores";
+}
+
+<h1 class="page-title">Proveedores</h1>
+<p class="page-sub">
+    Contacto, acuerdo marco y cumplimiento de plazos. Los pendientes fuera de plazo
+    de un proveedor con acuerdo marco son la base para valorar penalizaciones.
+</p>
+
+<div class="card">
+    <form method="get" class="flex flex-wrap" style="margin-bottom:16px">
+        <input type="search" name="search" value="@Model.Search" placeholder="Buscar por nombre o código…" style="max-width:360px" />
+        <label class="checkbox-inline">
+            <input type="checkbox" name="am" value="true" checked="@Model.SoloAcuerdoMarco" onchange="this.form.submit()" />
+            Solo acuerdo marco
+        </label>
+        <button type="submit" class="btn">Buscar</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Search) || Model.SoloAcuerdoMarco)
+        {
+            <a class="btn" asp-action="Index">Limpiar</a>
+        }
+    </form>
+
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="empty-state">No hay proveedores que mostrar. Se crean automáticamente al cargar el Excel de pedidos.</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Email</th>
+                        <th>Teléfono</th>
+                        <th>Acuerdo marco</th>
+                        <th title="Plazo de entrega aplicable (días hábiles)">Plazo</th>
+                        <th>Pendientes</th>
+                        <th>Fuera de plazo</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        var pr = r.Proveedor;
+                        <tr class="@(r.Incumple ? "row-critico" : "")">
+                            <td>@pr.Codigo</td>
+                            <td class="wrap">
+                                @pr.Nombre
+                                @if (!string.IsNullOrWhiteSpace(pr.NotasPenalizacion))
+                                {
+                                    <span title="@pr.NotasPenalizacion">📝</span>
+                                }
+                            </td>
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(pr.Email))
+                                {
+                                    <span class="tag tag-missing" title="Sin email no se puede reclamar por correo">Sin email</span>
+                                }
+                                else
+                                {
+                                    @pr.Email
+                                }
+                            </td>
+                            <td>@pr.Telefono</td>
+                            <td>
+                                @if (pr.AcuerdoMarco)
+                                {
+                                    <span class="tag tag-am">AM</span>
+                                }
+                            </td>
+                            <td>@r.PlazoAplicable d</td>
+                            <td>@r.PendientesTotales</td>
+                            <td>
+                                @if (r.PendientesFueraPlazo > 0)
+                                {
+                                    <span class="tag tag-missing">@r.PendientesFueraPlazo</span>
+                                }
+                                else
+                                {
+                                    <span class="muted">0</span>
+                                }
+                            </td>
+                            <td><a class="btn btn-sm" asp-action="Edit" asp-route-id="@pr.Id">Editar</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

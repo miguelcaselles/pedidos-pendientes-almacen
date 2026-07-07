@@ -31,6 +31,9 @@ public static class DependencyInjection
 
         services.AddScoped<IExcelOrderParser, ExcelOrderParser>();
         services.AddScoped<IOrderImportService, OrderImportService>();
+        services.AddScoped<IMd04ImportService, Md04ImportService>();
+        services.AddScoped<IClasificacionImportService, ClasificacionImportService>();
+        services.AddScoped<ISettingsService, SettingsService>();
 
         return services;
     }

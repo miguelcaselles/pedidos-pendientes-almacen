@@ -28,10 +28,14 @@
         </div>
     </header>
 
-    <nav class="nav-tabs">
+    <nav class="nav-tabs" aria-label="Navegación principal">
         <ul>
+            <li><a class="@Active("Home")" asp-controller="Home" asp-action="Index">Panel</a></li>
             <li><a class="@Active("Orders")" asp-controller="Orders" asp-action="Index">Pedidos</a></li>
-            <li><a class="@Active("Carga")" asp-controller="Carga" asp-action="Index">Cargar Excel</a></li>
+            <li><a class="@Active("Semaforo")" asp-controller="Semaforo" asp-action="Index">Semáforo MD04</a></li>
+            <li><a class="@Active("Proveedores")" asp-controller="Proveedores" asp-action="Index">Proveedores</a></li>
+            <li><a class="@Active("Carga")" asp-controller="Carga" asp-action="Index">Cargas</a></li>
+            <li><a class="@Active("Configuracion")" asp-controller="Configuracion" asp-action="Index">Configuración</a></li>
         </ul>
     </nav>
 
@@ -39,7 +43,7 @@
         <main role="main">
             @if (TempData["Success"] is string ok)
             {
-                <div class="alert alert-success">@ok</div>
+                <div class="alert alert-success" data-autodismiss>@ok</div>
             }
             @if (TempData["Error"] is string err)
             {
