@@ -47,6 +47,14 @@ public class ConfiguracionController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Guardar(ReclamacionParametros parametros, CancellationToken ct)
     {
+        parametros.PlazoReclamoA = Math.Clamp(parametros.PlazoReclamoA, 1, 60);
+        parametros.PlazoReclamoB = Math.Clamp(parametros.PlazoReclamoB, 1, 60);
+        parametros.PlazoReclamoC = Math.Clamp(parametros.PlazoReclamoC, 1, 60);
+        parametros.PlazoRespuestaDias = Math.Clamp(parametros.PlazoRespuestaDias, 1, 60);
+        parametros.PlazoLlamadaDias = Math.Clamp(parametros.PlazoLlamadaDias, 1, 60);
+        parametros.PlazoAcuerdoMarcoDias = Math.Clamp(parametros.PlazoAcuerdoMarcoDias, 1, 120);
+        parametros.PlazoObjetivoEntregaDias = Math.Clamp(parametros.PlazoObjetivoEntregaDias, 1, 120);
+        parametros.DiasAvisoCargaObsoleta = Math.Clamp(parametros.DiasAvisoCargaObsoleta, 1, 30);
         await _settings.SaveParametrosAsync(parametros, ct);
         TempData["Success"] = "Parámetros guardados.";
         return RedirectToAction(nameof(Index));

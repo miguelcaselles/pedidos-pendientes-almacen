@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Local browser review artifacts
+output/
+
 # User-specific files
 *.rsuser
 *.suo

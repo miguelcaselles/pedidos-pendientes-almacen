@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: pedidos-pendientes-almacen-demo
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_HTTP_PORTS
+        value: 10000
+      - key: Demo__Enabled
+        value: true
+      - key: Demo__Password
+        value: Fuenlabradafa01
+      - key: ReverseProxy__TrustForwardedHeaders
+        value: true

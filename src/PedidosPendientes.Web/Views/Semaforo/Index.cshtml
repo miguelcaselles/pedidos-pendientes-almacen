@@ -4,15 +4,20 @@
     string TabClass(string f) => Model.Filtro == f ? "active" : "";
 }
 
-<h1 class="page-title">Semáforo NEXUS MD04</h1>
-<p class="page-sub">
-    Materiales de almacenaje bajo mínimo cruzados con los pedidos pendientes.
-    Lo importante: <strong>lo que está en rojo y no tiene pedido lanzado</strong>.
-    @if (Model.CargadoAt is not null)
-    {
-        <span>Cargado el @Model.CargadoAt.Value.LocalDateTime.ToString("dd/MM/yyyy HH:mm").</span>
-    }
-</p>
+<div class="page-heading">
+    <div class="page-heading-main">
+        <div class="eyebrow">Cobertura de stock</div>
+        <h1 class="page-title">Semáforo NEXUS MD04</h1>
+        <p class="page-sub">Detecta primero los materiales bajo mínimo que todavía no tienen un pedido lanzado.</p>
+    </div>
+    <div class="page-heading-actions">
+        @if (Model.CargadoAt is not null)
+        {
+            <span class="freshness">MD04 @Model.CargadoAt.Value.LocalDateTime.ToString("dd/MM · HH:mm")</span>
+        }
+        <a class="btn" asp-controller="Carga" asp-action="Index">Actualizar MD04</a>
+    </div>
+</div>
 
 @if (Model.CargadoAt is null)
 {
@@ -28,20 +33,24 @@ else
 {
     <div class="stats">
         <a class="stat is-danger" asp-action="Index" asp-route-filtro="sinpedido">
-            <div class="label">🔴 Rojos sin pedido</div>
+            <div class="label">Rojos sin pedido</div>
             <div class="value">@Model.RojosSinPedido</div>
+            <div class="meta">acción inmediata</div>
         </a>
         <a class="stat is-danger" asp-action="Index" asp-route-filtro="rojos">
-            <div class="label">🔴 Rojos en total</div>
+            <div class="label">Rojos en total</div>
             <div class="value">@Model.Rojos</div>
+            <div class="meta">stock crítico</div>
         </a>
         <a class="stat is-warning" asp-action="Index" asp-route-filtro="todos">
-            <div class="label">🟡 Amarillos</div>
+            <div class="label">Amarillos</div>
             <div class="value">@Model.Amarillos</div>
+            <div class="meta">vigilar evolución</div>
         </a>
         <a class="stat is-success" asp-action="Index" asp-route-filtro="todos">
-            <div class="label">🟢 Verdes</div>
+            <div class="label">Verdes</div>
             <div class="value">@Model.Verdes</div>
+            <div class="meta">cobertura suficiente</div>
         </a>
     </div>
 

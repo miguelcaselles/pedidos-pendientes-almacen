@@ -6,18 +6,24 @@
     string TabClass(string tab) => Model.Estado == tab ? "active" : "";
 }
 
-<h1 class="page-title">Pedidos</h1>
-<p class="page-sub">
-    Seguimiento y reclamación de los pedidos del almacén.
-    @if (Model.UltimaCarga is not null)
-    {
-        <span>Última carga: @Model.UltimaCarga.Value.LocalDateTime.ToString("dd/MM/yyyy HH:mm").</span>
-    }
-</p>
+<div class="page-heading">
+    <div class="page-heading-main">
+        <div class="eyebrow">Gestión diaria</div>
+        <h1 class="page-title">Pedidos</h1>
+        <p class="page-sub">Consulta, prioriza y actualiza cada línea pendiente sin perder su trazabilidad.</p>
+    </div>
+    <div class="page-heading-actions">
+        @if (Model.UltimaCarga is not null)
+        {
+            <span class="freshness">Carga @Model.UltimaCarga.Value.LocalDateTime.ToString("dd/MM · HH:mm")</span>
+        }
+        <a class="btn btn-primary" asp-controller="Carga" asp-action="Index">Cargar Excel</a>
+    </div>
+</div>
 
 @if (Model.CargaObsoleta)
 {
-    <div class="alert alert-warning">
+    <div class="alert alert-warning" role="status">
         <strong>Ojo:</strong> los datos tienen más de @Model.DiasAvisoCarga días
         (o no hay carga). <a asp-controller="Carga" asp-action="Index">Carga el Excel de pedidos</a> para trabajar con datos frescos.
     </div>
@@ -34,16 +40,17 @@
 </nav>
 
 <div class="card">
-    <form method="get" class="flex flex-wrap" style="margin-bottom:16px">
+    <form method="get" class="flex flex-wrap mobile-stack" style="margin-bottom:16px" role="search">
         <input type="hidden" name="estado" value="@Model.Estado" />
-        <input type="search" name="search" value="@Model.Search" placeholder="Buscar por documento, proveedor, material, almacén o centro de coste…" style="max-width:420px" />
+        <label class="sr-only" for="orders-search">Buscar pedidos</label>
+        <input id="orders-search" type="search" name="search" value="@Model.Search" placeholder="Documento, proveedor, material, almacén…" style="max-width:440px" />
         <button type="submit" class="btn">Buscar</button>
         @if (!string.IsNullOrWhiteSpace(Model.Search))
         {
             <a class="btn" asp-action="Index" asp-route-estado="@Model.Estado">Limpiar</a>
         }
         <span class="spacer"></span>
-        <a class="btn btn-primary" asp-controller="Carga" asp-action="Index">Cargar Excel</a>
+        <span class="muted" aria-live="polite">@Model.Rows.Count resultado@(Model.Rows.Count == 1 ? "" : "s")</span>
     </form>
 
     @if (Model.Rows.Count == 0)
@@ -59,8 +66,8 @@
     }
     else
     {
-        <div class="table-wrap">
-            <table class="data">
+        <div class="table-wrap desktop-orders">
+            <table class="data orders-table">
                 <thead>
                     <tr>
                         <th>Documento</th>
@@ -131,29 +138,29 @@
                                     {
                                         <form method="post" asp-action="Reclamar" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
                                             @Html.AntiForgeryToken()
-                                            <button type="submit" class="icon-btn" title="@(o.Reclamado ? "Volver a reclamar" : "Marcar como reclamado")">📢</button>
+                                            <button type="submit" class="icon-btn" aria-label="@(o.Reclamado ? "Volver a reclamar" : "Marcar como reclamado")" title="@(o.Reclamado ? "Volver a reclamar" : "Marcar como reclamado")"><span aria-hidden="true">↗</span></button>
                                         </form>
                                         <form method="post" asp-action="Recibir" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
                                             @Html.AntiForgeryToken()
-                                            <button type="submit" class="icon-btn" title="Marcar como recibido">✅</button>
+                                            <button type="submit" class="icon-btn" aria-label="Marcar como recibido" title="Marcar como recibido"><span aria-hidden="true">✓</span></button>
                                         </form>
                                         @if (!o.EnFalta)
                                         {
                                             <form method="post" asp-action="EnFalta" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
                                                 @Html.AntiForgeryToken()
-                                                <button type="submit" class="icon-btn" title="Marcar en falta">⚠️</button>
+                                                <button type="submit" class="icon-btn" aria-label="Marcar en falta" title="Marcar en falta"><span aria-hidden="true">!</span></button>
                                             </form>
                                         }
                                         <form method="post" asp-action="Anular" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search" data-confirm="¿Anular la línea @o.DocumentoCompras / @o.Material?">
                                             @Html.AntiForgeryToken()
-                                            <button type="submit" class="icon-btn" title="Anular línea">🚫</button>
+                                            <button type="submit" class="icon-btn is-danger" aria-label="Anular línea" title="Anular línea"><span aria-hidden="true">×</span></button>
                                         </form>
                                     }
                                     else
                                     {
                                         <form method="post" asp-action="Reactivar" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
                                             @Html.AntiForgeryToken()
-                                            <button type="submit" class="icon-btn" title="Devolver a pendientes">↩️</button>
+                                            <button type="submit" class="icon-btn" aria-label="Devolver a pendientes" title="Devolver a pendientes"><span aria-hidden="true">↶</span></button>
                                         </form>
                                     }
                                 </td>
@@ -161,6 +168,80 @@
                     }
                 </tbody>
             </table>
+        </div>
+        <div class="mobile-order-list">
+            @foreach (var r in Model.Rows)
+            {
+                var o = r.Order;
+                <article class="mobile-order-card @(r.Alerta == AlertaReclamacion.Llamar ? "is-urgent" : r.CriticidadNivel == "critico" ? "is-critical" : "")">
+                    <div class="mobile-order-head">
+                        <div>
+                            <span class="mobile-order-label">Pedido</span>
+                            <strong>@o.DocumentoCompras</strong>
+                        </div>
+                        <div>
+                            @if (o.Anulado) { <span class="tag tag-pending">Anulado</span> }
+                            else if (o.Recibido) { <span class="tag tag-received">Recibido</span> }
+                            else if (o.EnFalta) { <span class="tag tag-missing">En falta</span> }
+                            else if (r.Alerta == AlertaReclamacion.Llamar) { <span class="tag tag-missing">Llamar</span> }
+                            else if (r.Alerta == AlertaReclamacion.SinRespuesta) { <span class="tag tag-claimed">Sin respuesta</span> }
+                            else if (o.Reclamado) { <span class="tag tag-claimed">Reclamado ×@o.ReclamadoCount</span> }
+                            else if (r.Alerta == AlertaReclamacion.Reclamar) { <span class="tag tag-reclamar">Reclamar ya</span> }
+                            else { <span class="tag tag-pending">Pendiente</span> }
+                        </div>
+                    </div>
+                    <div class="mobile-order-body">
+                        <div class="mobile-material">
+                            <strong>@o.TextoBreve</strong>
+                            <span>@o.Material</span>
+                            @if (r.Clase is not null)
+                            {
+                                <span class="clase clase-@r.Clase.ToLowerInvariant()">@r.Clase</span>
+                            }
+                        </div>
+                        <div class="mobile-provider">
+                            @o.ProveedorNombre
+                            @if (r.AcuerdoMarco) { <span class="tag tag-am">AM</span> }
+                        </div>
+                        <dl class="mobile-order-meta">
+                            <div><dt>Ubicación</dt><dd>@o.Almacen · @o.CentroCoste</dd></div>
+                            <div><dt>Antigüedad</dt><dd class="@(r.FueraPlazo ? "text-danger" : "")">@r.DiasHabiles días háb.</dd></div>
+                            <div><dt>Por entregar</dt><dd>@(o.PorEntregarCantidad?.ToString("0.##") ?? "—")</dd></div>
+                            <div><dt>Fecha</dt><dd>@o.FechaDocumento.ToString("dd/MM/yyyy")</dd></div>
+                        </dl>
+                        @if (r.CriticidadNivel is not null)
+                        {
+                            <span class="tag tag-critico @(r.CriticidadNivel == "alto" ? "is-alto" : "")">@(r.CriticidadDescripcion ?? "Ubicación prioritaria")</span>
+                        }
+                    </div>
+                    <div class="mobile-order-actions" aria-label="Acciones del pedido @o.DocumentoCompras">
+                        @if (!o.Recibido && !o.Anulado)
+                        {
+                            <form method="post" asp-action="Reclamar" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
+                                @Html.AntiForgeryToken()<button type="submit" class="mobile-action">@(o.Reclamado ? "Reclamar de nuevo" : "Reclamar")</button>
+                            </form>
+                            <form method="post" asp-action="Recibir" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
+                                @Html.AntiForgeryToken()<button type="submit" class="mobile-action is-primary">Recibido</button>
+                            </form>
+                            @if (!o.EnFalta)
+                            {
+                                <form method="post" asp-action="EnFalta" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
+                                    @Html.AntiForgeryToken()<button type="submit" class="mobile-action">En falta</button>
+                                </form>
+                            }
+                            <form method="post" asp-action="Anular" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search" data-confirm="¿Anular la línea @o.DocumentoCompras / @o.Material?">
+                                @Html.AntiForgeryToken()<button type="submit" class="mobile-action is-danger">Anular</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <form method="post" asp-action="Reactivar" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
+                                @Html.AntiForgeryToken()<button type="submit" class="mobile-action is-primary">Devolver a pendientes</button>
+                            </form>
+                        }
+                    </div>
+                </article>
+            }
         </div>
         @if (Model.Truncado)
         {

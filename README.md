@@ -34,6 +34,28 @@ dotnet run
 Abrir la URL que indique la consola. Al no haber `ConnectionStrings:Default`,
 la app crea una base en memoria (los datos se pierden al reiniciar).
 
+### Escenario de demostración
+
+Cuando `Demo:Enabled` es `true` y la aplicación usa la base en memoria, se crea
+automáticamente un escenario ficticio completo: pedidos en todos los estados,
+proveedores, acuerdos marco, clasificación A/B/C, criticidades y semáforo MD04.
+La interfaz lo identifica permanentemente como **DEMO**.
+
+El seeder está bloqueado para bases relacionales: aunque la opción se dejase
+activada por error, nunca inserta datos ficticios en SQL Server. Para desactivar
+la demo local, usar `Demo__Enabled=false`.
+
+## Demo desplegable en Render
+
+El repositorio incluye `Dockerfile`, `.dockerignore` y `render.yaml`. El Blueprint
+levanta una única instancia gratuita en Frankfurt con datos exclusivamente en
+memoria. Los cambios hechos durante una presentación son temporales y el escenario
+se restaura al reiniciar el servicio.
+
+Para el despliegue corporativo definitivo no debe usarse este Blueprint: se
+publica en IIS, se configura `ConnectionStrings__Default` y se establece
+`Demo__Enabled=false`.
+
 ## Ejecutar contra SQL Server
 
 1. Configurar la cadena de conexión en `appsettings.json`

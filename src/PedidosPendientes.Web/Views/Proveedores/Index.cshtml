@@ -3,15 +3,21 @@
     ViewData["Title"] = "Proveedores";
 }
 
-<h1 class="page-title">Proveedores</h1>
-<p class="page-sub">
-    Contacto, acuerdo marco y cumplimiento de plazos. Los pendientes fuera de plazo
-    de un proveedor con acuerdo marco son la base para valorar penalizaciones.
-</p>
+<div class="page-heading">
+    <div class="page-heading-main">
+        <div class="eyebrow">Relación y cumplimiento</div>
+        <h1 class="page-title">Proveedores</h1>
+        <p class="page-sub">Contactos, acuerdos marco y desviaciones de plazo listas para seguimiento.</p>
+    </div>
+    <div class="page-heading-actions">
+        <span class="freshness">@Model.Rows.Count proveedores visibles</span>
+    </div>
+</div>
 
 <div class="card">
-    <form method="get" class="flex flex-wrap" style="margin-bottom:16px">
-        <input type="search" name="search" value="@Model.Search" placeholder="Buscar por nombre o código…" style="max-width:360px" />
+    <form method="get" class="flex flex-wrap mobile-stack" style="margin-bottom:16px" role="search">
+        <label class="sr-only" for="provider-search">Buscar proveedores</label>
+        <input id="provider-search" type="search" name="search" value="@Model.Search" placeholder="Buscar por nombre o código…" style="max-width:360px" />
         <label class="checkbox-inline">
             <input type="checkbox" name="am" value="true" checked="@Model.SoloAcuerdoMarco" onchange="this.form.submit()" />
             Solo acuerdo marco

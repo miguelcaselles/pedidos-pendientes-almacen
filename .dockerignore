@@ -1,0 +1,15 @@
+.git
+.gitignore
+.idea
+.vs
+.vscode
+**/bin
+**/obj
+output
+TestResults
+*.user
+*.suo
+*.mdf
+*.ldf
+*.pfx
+*.publishsettings

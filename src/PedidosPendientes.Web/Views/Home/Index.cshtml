@@ -4,12 +4,24 @@
     var maxIncidencias = Math.Max(1, Model.IncidenciasPorMes.Count == 0 ? 1 : Model.IncidenciasPorMes.Max(m => m.Total));
 }
 
-<h1 class="page-title">Panel de control</h1>
-<p class="page-sub">Visión general del seguimiento de pedidos pendientes del almacén.</p>
+<div class="page-heading">
+    <div class="page-heading-main">
+        <div class="eyebrow">Resumen operativo</div>
+        <h1 class="page-title">Panel de control</h1>
+        <p class="page-sub">Prioridades del día, incidencias y estado del suministro en una única vista.</p>
+    </div>
+    <div class="page-heading-actions">
+        @if (Model.UltimaPedidos is not null)
+        {
+            <span class="freshness">Actualizado @Model.UltimaPedidos.At.LocalDateTime.ToString("dd/MM · HH:mm")</span>
+        }
+        <a class="btn btn-primary" asp-controller="Orders" asp-action="Index" asp-route-estado="reclamar">Revisar prioridades</a>
+    </div>
+</div>
 
 @if (Model.CargaPedidosObsoleta)
 {
-    <div class="alert alert-warning">
+    <div class="alert alert-warning" role="status">
         <strong>Datos posiblemente desactualizados:</strong>
         @if (Model.UltimaPedidos is null)
         {
@@ -27,22 +39,27 @@
     <a class="stat is-primary" asp-controller="Orders" asp-action="Index">
         <div class="label">Pendientes</div>
         <div class="value">@Model.TotalPendientes</div>
+        <div class="meta">líneas activas</div>
     </a>
     <a class="stat is-danger" asp-controller="Orders" asp-action="Index" asp-route-estado="reclamar">
         <div class="label">Para reclamar</div>
         <div class="value">@Model.ParaReclamar</div>
+        <div class="meta">requieren acción</div>
     </a>
     <a class="stat is-warning" asp-controller="Orders" asp-action="Index" asp-route-estado="alertas">
         <div class="label">Sin respuesta</div>
         <div class="value">@Model.SinRespuesta</div>
+        <div class="meta">seguimiento vencido</div>
     </a>
     <a class="stat is-danger" asp-controller="Orders" asp-action="Index" asp-route-estado="alertas">
-        <div class="label">Para llamar ☎</div>
+        <div class="label">Para llamar</div>
         <div class="value">@Model.ParaLlamar</div>
+        <div class="meta">máxima prioridad</div>
     </a>
     <a class="stat is-success" asp-controller="Orders" asp-action="Index" asp-route-estado="recibidos">
         <div class="label">Recibidos hoy</div>
         <div class="value">@Model.RecibidosHoy</div>
+        <div class="meta">cerrados en el día</div>
     </a>
 </div>
 

@@ -99,7 +99,7 @@ public class OrdersController : Controller
             o.Reclamado = true;
             o.ReclamadoAt = DateTimeOffset.UtcNow;
             o.ReclamadoCount++;
-        }, ct);
+        }, "Pedido marcado como reclamado.", ct);
 
     [HttpPost, ValidateAntiForgeryToken]
     public Task<IActionResult> Recibir(int id, string? estado, string? search, CancellationToken ct)
@@ -108,7 +108,7 @@ public class OrdersController : Controller
             o.Recibido = true;
             o.RecibidoAt = DateTimeOffset.UtcNow;
             o.EnFalta = false;
-        }, ct);
+        }, "Pedido marcado como recibido.", ct);
 
     [HttpPost, ValidateAntiForgeryToken]
     public Task<IActionResult> EnFalta(int id, string? estado, string? search, CancellationToken ct)
@@ -116,7 +116,7 @@ public class OrdersController : Controller
         {
             o.EnFalta = true;
             o.EnFaltaAt = DateTimeOffset.UtcNow;
-        }, ct);
+        }, "Pedido marcado en falta para su seguimiento.", ct);
 
     [HttpPost, ValidateAntiForgeryToken]
     public Task<IActionResult> Anular(int id, string? estado, string? search, CancellationToken ct)
@@ -124,7 +124,7 @@ public class OrdersController : Controller
         {
             o.Anulado = true;
             o.AnuladoAt = DateTimeOffset.UtcNow;
-        }, ct);
+        }, "Línea anulada. Puedes recuperarla desde la pestaña Anulados.", ct);
 
     [HttpPost, ValidateAntiForgeryToken]
     public Task<IActionResult> Reactivar(int id, string? estado, string? search, CancellationToken ct)
@@ -135,10 +135,10 @@ public class OrdersController : Controller
             o.Anulado = false;
             o.AnuladoAt = null;
             o.EnFalta = false;
-        }, ct);
+        }, "Línea devuelta a pedidos pendientes.", ct);
 
     private async Task<IActionResult> Cambiar(int id, string? estado, string? search,
-        Action<Core.Entities.Order> accion, CancellationToken ct)
+        Action<Core.Entities.Order> accion, string mensaje, CancellationToken ct)
     {
         var order = await _db.Orders.FindAsync([id], ct);
         if (order is null)
@@ -149,6 +149,7 @@ public class OrdersController : Controller
         {
             accion(order);
             await _db.SaveChangesAsync(ct);
+            TempData["Success"] = mensaje;
         }
         return RedirectToAction(nameof(Index), new { estado, search });
     }

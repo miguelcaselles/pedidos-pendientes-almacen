@@ -1,6 +1,8 @@
 @{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
     string Active(string controller) => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    string? Current(string controller) => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase) ? "page" : null;
+    var isDemo = Context.Items["DemoMode"] as bool? == true;
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -13,11 +15,12 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
+    <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
     <header class="site-header">
         <div class="brand">
             <img src="~/img/logo-huf.png" alt="Hospital Universitario de Fuenlabrada" />
             <div class="titles">
-                <span class="app-title">Pedidos Pendientes · Almacén</span>
+                <span class="app-title">Pedidos Pendientes <span>· Almacén</span></span>
                 <span class="app-sub">Servicio de Suministros · Hospital Universitario de Fuenlabrada</span>
             </div>
             <div class="spacer"></div>
@@ -30,24 +33,34 @@
 
     <nav class="nav-tabs" aria-label="Navegación principal">
         <ul>
-            <li><a class="@Active("Home")" asp-controller="Home" asp-action="Index">Panel</a></li>
-            <li><a class="@Active("Orders")" asp-controller="Orders" asp-action="Index">Pedidos</a></li>
-            <li><a class="@Active("Semaforo")" asp-controller="Semaforo" asp-action="Index">Semáforo MD04</a></li>
-            <li><a class="@Active("Proveedores")" asp-controller="Proveedores" asp-action="Index">Proveedores</a></li>
-            <li><a class="@Active("Carga")" asp-controller="Carga" asp-action="Index">Cargas</a></li>
-            <li><a class="@Active("Configuracion")" asp-controller="Configuracion" asp-action="Index">Configuración</a></li>
+            <li><a class="@Active("Home")" aria-current="@Current("Home")" asp-controller="Home" asp-action="Index"><span class="nav-icon" aria-hidden="true">⌂</span>Panel</a></li>
+            <li><a class="@Active("Orders")" aria-current="@Current("Orders")" asp-controller="Orders" asp-action="Index"><span class="nav-icon" aria-hidden="true">≡</span>Pedidos</a></li>
+            <li><a class="@Active("Semaforo")" aria-current="@Current("Semaforo")" asp-controller="Semaforo" asp-action="Index"><span class="nav-icon" aria-hidden="true">◉</span>Semáforo MD04</a></li>
+            <li><a class="@Active("Proveedores")" aria-current="@Current("Proveedores")" asp-controller="Proveedores" asp-action="Index"><span class="nav-icon" aria-hidden="true">◇</span>Proveedores</a></li>
+            <li><a class="@Active("Carga")" aria-current="@Current("Carga")" asp-controller="Carga" asp-action="Index"><span class="nav-icon" aria-hidden="true">↑</span>Cargas</a></li>
+            <li><a class="@Active("Configuracion")" aria-current="@Current("Configuracion")" asp-controller="Configuracion" asp-action="Index"><span class="nav-icon" aria-hidden="true">⚙</span>Configuración</a></li>
         </ul>
     </nav>
 
+    @if (isDemo)
+    {
+        <aside class="demo-banner" aria-label="Aviso de demostración">
+            <div class="demo-banner-inner">
+                <span class="demo-badge">DEMO</span>
+                <span><strong>Entorno de demostración</strong> · Todos los nombres, pedidos y contactos son ficticios. Los cambios son temporales y se restauran al reiniciar.</span>
+            </div>
+        </aside>
+    }
+
     <div class="container">
-        <main role="main">
+        <main id="main-content" tabindex="-1">
             @if (TempData["Success"] is string ok)
             {
-                <div class="alert alert-success" data-autodismiss>@ok</div>
+                <div class="alert alert-success" role="status" data-autodismiss>@ok</div>
             }
             @if (TempData["Error"] is string err)
             {
-                <div class="alert alert-danger">@err</div>
+                <div class="alert alert-danger" role="alert">@err</div>
             }
             @RenderBody()
         </main>
@@ -55,7 +68,7 @@
 
     <footer class="site-footer">
         <div>Hospital Universitario de Fuenlabrada · Servicio de Suministros (Almacén) · SERMAS</div>
-        <div>Herramienta de gestión interna. Información de uso restringido y confidencial (RGPD / LOPDGDD).</div>
+        <div>@(isDemo ? "Demostración con información exclusivamente ficticia." : "Herramienta de gestión interna. Información de uso restringido y confidencial (RGPD / LOPDGDD).")</div>
     </footer>
 
     <script src="~/js/site.js" asp-append-version="true"></script>

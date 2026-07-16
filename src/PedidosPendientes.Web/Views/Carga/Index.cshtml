@@ -6,15 +6,17 @@
         => u is null ? "Nunca" : u.At.LocalDateTime.ToString("dd/MM/yyyy HH:mm");
 }
 
-<h1 class="page-title">Cargas de archivos</h1>
-<p class="page-sub">
-    Los tres listados que alimentan la aplicación. Las columnas se detectan
-    automáticamente por su cabecera; solo se admiten Excel (.xlsx).
-</p>
+<div class="page-heading">
+    <div class="page-heading-main">
+        <div class="eyebrow">Actualización de datos</div>
+        <h1 class="page-title">Cargas de archivos</h1>
+        <p class="page-sub">Actualiza las tres fuentes en orden. La aplicación valida las cabeceras y conserva la gestión realizada.</p>
+    </div>
+</div>
 
 <div class="grid-3">
-    <div class="card">
-        <h2>1 · Pedidos pendientes (SAP)</h2>
+    <div class="card upload-card">
+        <h2><span class="upload-step">1</span>Pedidos pendientes (SAP)</h2>
         <p class="hint">
             Exportación de pedidos pendientes del almacén. Carga <strong>no destructiva</strong>:
             conserva recibido, reclamado, anulado y comentarios.
@@ -35,8 +37,8 @@
         </form>
     </div>
 
-    <div class="card">
-        <h2>2 · Semáforo MD04 (NEXUS)</h2>
+    <div class="card upload-card">
+        <h2><span class="upload-step">2</span>Semáforo MD04 (NEXUS)</h2>
         <p class="hint">
             Listado de necesidades de almacenaje. Cada carga <strong>sustituye</strong> la
             anterior (es la foto del día). Alimenta la pestaña Semáforo.
@@ -57,8 +59,8 @@
         </form>
     </div>
 
-    <div class="card">
-        <h2>3 · Clasificación A/B/C</h2>
+    <div class="card upload-card">
+        <h2><span class="upload-step">3</span>Clasificación A/B/C</h2>
         <p class="hint">
             Listado de urgencia por código NEXUS (columnas: material y clase A/B/C).
             Parametriza los plazos de reclamación. Carga acumulativa.
