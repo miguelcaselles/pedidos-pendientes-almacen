@@ -1,0 +1,8 @@
+@{
+    var act = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+    var enAuditoria = act.StartsWith("Auditoria");
+}
+<div class="subnav no-print" role="tablist" aria-label="Secciones de proveedores">
+    <a class="subnav-tab @(enAuditoria ? "" : "active")" asp-action="Index" role="tab" aria-selected="@((!enAuditoria).ToString().ToLowerInvariant())">Listado</a>
+    <a class="subnav-tab @(enAuditoria ? "active" : "")" asp-action="Auditoria" role="tab" aria-selected="@enAuditoria.ToString().ToLowerInvariant()">Auditoría</a>
+</div>

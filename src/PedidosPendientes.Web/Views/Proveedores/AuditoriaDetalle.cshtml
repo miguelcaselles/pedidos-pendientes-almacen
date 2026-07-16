@@ -1,0 +1,230 @@
+@model AuditoriaProveedorDetalle
+@{
+    var m = Model.Resumen;
+    var pr = m.Proveedor;
+    ViewData["Title"] = $"Auditoría · {pr.Nombre}";
+
+    string Pct(double? v) => v.HasValue ? v.Value.ToString("0") + "%" : "—";
+    string Num(double? v) => v.HasValue ? v.Value.ToString("0.0") : "—";
+    string CalifClass(string c) => c switch
+    {
+        "Excelente" => "tag-received",
+        "Bueno" => "tag-am",
+        "Mejorable" => "tag-claimed",
+        "Deficiente" => "tag-missing",
+        _ => "tag-pending",
+    };
+    string EstadoResp(string e) => e switch
+    {
+        "registrado_entregado" => "Entregado",
+        "en_falta" => "En falta",
+        "envio_parcial" => "Envío parcial",
+        "pendiente_fabricacion" => "En fabricación",
+        "fecha_estimada" => "Fecha estimada",
+        "no_localizado" => "No localizado",
+        "anulado" => "Anulado",
+        _ => e,
+    };
+    var maxMes = Math.Max(1, Model.Evolucion.Count == 0 ? 1 : Model.Evolucion.Max(x => Math.Max(x.Pedidos, x.Recibidos)));
+}
+
+<div class="page-heading">
+    <div class="page-heading-main">
+        <div class="eyebrow"><a asp-action="Auditoria">← Auditoría de proveedores</a></div>
+        <h1 class="page-title">@pr.Nombre</h1>
+        <p class="page-sub">
+            @pr.Codigo
+            @if (pr.AcuerdoMarco) { <span class="tag tag-am">Acuerdo marco</span> }
+            <span class="tag @CalifClass(m.Calificacion)">@m.Calificacion · @Math.Round(m.Puntuacion)/100</span>
+        </p>
+    </div>
+    <div class="page-heading-actions no-print">
+        <a class="btn" asp-action="AuditoriaProveedorExcel" asp-route-codigo="@pr.Codigo">⬇ Excel detallado</a>
+        <button type="button" class="btn btn-primary" onclick="window.print()">🖨 Informe / PDF</button>
+    </div>
+</div>
+
+@await Html.PartialAsync("_SubNav")
+
+<div class="report-meta print-only">Informe de auditoría · @pr.Nombre (@pr.Codigo) · generado el @Model.GeneradoEl.ToString("dd/MM/yyyy HH:mm") · HUF · Servicio de Suministros</div>
+
+<div class="card">
+    <div class="ficha-grid">
+        <div><span class="ficha-k">NIF/CIF</span><span class="ficha-v">@(pr.NifCif ?? "—")</span></div>
+        <div><span class="ficha-k">Email</span><span class="ficha-v">@(string.IsNullOrWhiteSpace(pr.Email) ? "— (sin email)" : pr.Email)</span></div>
+        <div><span class="ficha-k">Teléfono</span><span class="ficha-v">@(pr.Telefono ?? "—")</span></div>
+        <div><span class="ficha-k">Población</span><span class="ficha-v">@(pr.Poblacion ?? "—")</span></div>
+        <div><span class="ficha-k">Plazo aplicable</span><span class="ficha-v">@m.PlazoAplicable días hábiles</span></div>
+        <div><span class="ficha-k">Acuerdo marco</span><span class="ficha-v">@(pr.AcuerdoMarco ? "Sí" : "No")</span></div>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(pr.NotasPenalizacion))
+    {
+        <div class="alert alert-warning" style="margin-top:14px"><strong>Notas de penalización:</strong> @pr.NotasPenalizacion</div>
+    }
+</div>
+
+<div class="stats">
+    <div class="stat is-primary">
+        <div class="label">Líneas totales</div>
+        <div class="value">@m.TotalLineas</div>
+        <div class="meta">@m.Pendientes pendientes · @m.Recibidas recibidas</div>
+    </div>
+    <div class="stat is-success">
+        <div class="label">% a tiempo</div>
+        <div class="value">@Pct(m.PorcentajeATiempo)</div>
+        <div class="meta">@m.EntregadasATiempo de @(m.EntregadasATiempo + m.EntregadasTarde) recibidas</div>
+    </div>
+    <div class="stat is-primary">
+        <div class="label">T. medio entrega</div>
+        <div class="value">@Num(m.TiempoMedioEntrega)</div>
+        <div class="meta">mediana @Num(m.TiempoMedianoEntrega) · máx @(m.TiempoMaxEntrega?.ToString() ?? "—") d</div>
+    </div>
+    <div class="stat @(m.PendientesFueraPlazo > 0 ? "is-danger" : "is-success")">
+        <div class="label">Pend. fuera plazo</div>
+        <div class="value">@m.PendientesFueraPlazo</div>
+        <div class="meta">@m.EnFalta en falta</div>
+    </div>
+    <div class="stat is-warning">
+        <div class="label">Reclamaciones</div>
+        <div class="value">@m.TotalReclamaciones</div>
+        <div class="meta">@m.LineasReclamadas líneas · @m.Rereclamadas re-reclamadas</div>
+    </div>
+    <div class="stat @(m.TasaRespuesta >= 70 ? "is-success" : "is-warning")">
+        <div class="label">Tasa de respuesta</div>
+        <div class="value">@Pct(m.TasaRespuesta)</div>
+        <div class="meta">@m.RespuestasRecibidas respuestas · @m.EmailsEnviados correos</div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h2>Evolución mensual</h2>
+        <p class="hint">Pedidos realizados y recibidos en los últimos 12 meses.</p>
+        <div class="barchart" role="img" aria-label="Evolución mensual de pedidos y recepciones">
+            @foreach (var x in Model.Evolucion)
+            {
+                var h = (int)Math.Round(100.0 * x.Pedidos / maxMes);
+                <div class="barchart-col" title="@x.Etiqueta — @x.Pedidos pedidos, @x.Recibidos recibidos, @x.Reclamaciones reclamaciones, @x.EnFalta en falta@(x.TiempoMedioEntrega.HasValue ? $", entrega media {x.TiempoMedioEntrega.Value:0.0} d" : "")">
+                    <div class="barchart-value">@(x.Pedidos > 0 ? x.Pedidos.ToString() : "")</div>
+                    <div class="barchart-bar" style="height:@(Math.Max(h, x.Pedidos > 0 ? 6 : 2))%"></div>
+                    <div class="barchart-label">@x.Etiqueta</div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Desglose por clase A/B/C</h2>
+        @if (Model.PorClase.Count == 0)
+        {
+            <div class="empty-state">Sin materiales clasificados.</div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Clase</th><th>Líneas</th><th>Pendientes</th><th>Fuera de plazo</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in Model.PorClase)
+                        {
+                            <tr>
+                                <td><span class="clase clase-@c.Clase.ToLowerInvariant()">@c.Clase</span></td>
+                                <td>@c.Lineas</td>
+                                <td>@c.Pendientes</td>
+                                <td>@if (c.FueraPlazo > 0) { <span class="tag tag-missing">@c.FueraPlazo</span> } else { <span class="muted">0</span> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <h2 style="margin-top:20px">Respuestas por estado</h2>
+        @if (Model.RespuestasPorEstado.Count == 0)
+        {
+            <div class="empty-state">El proveedor no ha registrado respuestas.</div>
+        }
+        else
+        {
+            <div class="pills">
+                @foreach (var r in Model.RespuestasPorEstado)
+                {
+                    <span class="tag tag-claimed">@EstadoResp(r.Estado): @r.Count</span>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<div class="card">
+    <h2>Detalle de líneas (@Model.Lineas.Count)</h2>
+    <p class="hint">Todas las líneas del proveedor con sus tiempos y estado. Las filas en rojo están fuera de plazo.</p>
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+                <tr>
+                    <th>Documento</th>
+                    <th>Material</th>
+                    <th>Descripción</th>
+                    <th>Clase</th>
+                    <th>Fecha</th>
+                    <th>Estado</th>
+                    <th title="Días hábiles transcurridos / hasta la recepción">Días</th>
+                    <th title="Días hábiles hasta la entrega">Entrega</th>
+                    <th>Reclam.</th>
+                    <th>Resp.</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var l in Model.Lineas)
+                {
+                    <tr class="@(l.FueraPlazo ? "row-critico" : "")">
+                        <td>@l.Order.DocumentoCompras</td>
+                        <td>@l.Order.Material</td>
+                        <td class="wrap">@l.Order.TextoBreve</td>
+                        <td>@if (l.Clase is not null) { <span class="clase clase-@l.Clase.ToLowerInvariant()">@l.Clase</span> }</td>
+                        <td>@l.Order.FechaDocumento.ToString("dd/MM/yy")</td>
+                        <td>
+                            @switch (l.Estado)
+                            {
+                                case "Recibido": <span class="tag tag-received">Recibido</span> break;
+                                case "En falta": <span class="tag tag-missing">En falta</span> break;
+                                case "Anulado": <span class="muted">Anulado</span> break;
+                                default: <span class="tag tag-pending">Pendiente</span> break;
+                            }
+                        </td>
+                        <td>@l.DiasHabiles d</td>
+                        <td>@(l.DiasEntrega.HasValue ? l.DiasEntrega.Value + " d" : "—")</td>
+                        <td>@if (l.Reclamado) { <text>@l.ReclamadoCount×</text> } else { <span class="muted">—</span> }</td>
+                        <td>@if (l.TieneRespuesta) { <span class="tag tag-received" title="El proveedor respondió">Sí</span> } else { <span class="muted">—</span> }</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (Model.Respuestas.Count > 0)
+{
+    <div class="card">
+        <h2>Historial de respuestas del proveedor</h2>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Fecha</th><th>Documento</th><th>Material</th><th>Estado</th><th>Fecha estimada</th><th>Revisión</th><th>Comentario</th></tr></thead>
+                <tbody>
+                    @foreach (var r in Model.Respuestas)
+                    {
+                        <tr>
+                            <td>@r.CreatedAt.LocalDateTime.ToString("dd/MM/yy")</td>
+                            <td>@r.DocumentoCompras</td>
+                            <td>@(r.Material ?? "(global)")</td>
+                            <td><span class="tag tag-claimed">@EstadoResp(r.Estado)</span></td>
+                            <td>@(r.FechaEstimada?.ToString("dd/MM/yyyy") ?? "—")</td>
+                            <td>@r.RevisionEstado</td>
+                            <td class="wrap">@r.Comentario</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

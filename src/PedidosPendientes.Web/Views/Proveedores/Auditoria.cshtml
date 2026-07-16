@@ -1,0 +1,186 @@
+@model AuditoriaGlobalViewModel
+@{
+    ViewData["Title"] = "Auditoría de proveedores";
+
+    string Pct(double? v) => v.HasValue ? v.Value.ToString("0") + "%" : "—";
+    string Num(double? v) => v.HasValue ? v.Value.ToString("0.0") : "—";
+    string CalifClass(string c) => c switch
+    {
+        "Excelente" => "tag-received",
+        "Bueno" => "tag-am",
+        "Mejorable" => "tag-claimed",
+        "Deficiente" => "tag-missing",
+        _ => "tag-pending",
+    };
+    var totalDistrib = Model.DistribucionCalificacion.Sum(d => d.Count);
+}
+
+<div class="page-heading">
+    <div class="page-heading-main">
+        <div class="eyebrow">Relación y cumplimiento</div>
+        <h1 class="page-title">Auditoría de proveedores</h1>
+        <p class="page-sub">Cumplimiento global y por proveedor: tiempos de entrega, reclamaciones y respuestas, con exportación a Excel e informes.</p>
+    </div>
+    <div class="page-heading-actions no-print">
+        <a class="btn" asp-action="AuditoriaExcel" asp-route-search="@Model.Search" asp-route-am="@Model.SoloAcuerdoMarco" asp-route-orden="@Model.Orden">⬇ Excel global</a>
+        <button type="button" class="btn btn-primary" onclick="window.print()">🖨 Informe / PDF</button>
+    </div>
+</div>
+
+@await Html.PartialAsync("_SubNav")
+
+<div class="report-meta print-only">Informe generado el @Model.GeneradoEl.ToString("dd/MM/yyyy HH:mm") · Hospital Universitario de Fuenlabrada · Servicio de Suministros</div>
+
+<div class="stats">
+    <div class="stat is-primary">
+        <div class="label">Proveedores auditados</div>
+        <div class="value">@Model.TotalProveedores</div>
+        <div class="meta">@Model.ProveedoresAcuerdoMarco con acuerdo marco</div>
+    </div>
+    <div class="stat @(Model.ProveedoresIncumplen > 0 ? "is-danger" : "is-success")">
+        <div class="label">Incumplen plazo</div>
+        <div class="value">@Model.ProveedoresIncumplen</div>
+        <div class="meta">con AM y desviaciones</div>
+    </div>
+    <div class="stat is-success">
+        <div class="label">Entrega a tiempo</div>
+        <div class="value">@Pct(Model.PorcentajeEntregaATiempo)</div>
+        <div class="meta">sobre @Model.LineasRecibidas recibidas</div>
+    </div>
+    <div class="stat is-primary">
+        <div class="label">T. medio entrega</div>
+        <div class="value">@Num(Model.TiempoMedioEntregaGlobal)</div>
+        <div class="meta">días hábiles</div>
+    </div>
+    <div class="stat is-warning">
+        <div class="label">Pend. fuera plazo</div>
+        <div class="value">@Model.PendientesFueraPlazo</div>
+        <div class="meta">de @Model.LineasPendientes pendientes</div>
+    </div>
+    <div class="stat @(Model.TasaRespuestaGlobal >= 70 ? "is-success" : "is-warning")">
+        <div class="label">Tasa de respuesta</div>
+        <div class="value">@Pct(Model.TasaRespuestaGlobal)</div>
+        <div class="meta">@Model.RespuestasProveedor de @Model.LineasReclamadas reclamadas</div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h2>Reparto por calificación</h2>
+        <p class="hint">Puntuación 0-100 que combina entregas a tiempo (50%), pendientes dentro de plazo (30%) y respuesta a reclamaciones (20%).</p>
+        @if (totalDistrib > 0)
+        {
+            <div class="distrib-bar" role="img" aria-label="Distribución de proveedores por calificación">
+                @foreach (var d in Model.DistribucionCalificacion)
+                {
+                    var w = 100.0 * d.Count / totalDistrib;
+                    <div class="distrib-seg @CalifClass(d.Calificacion)" style="width:@w.ToString(System.Globalization.CultureInfo.InvariantCulture)%" title="@d.Calificacion: @d.Count"></div>
+                }
+            </div>
+            <div class="pills" style="margin-top:12px">
+                @foreach (var d in Model.DistribucionCalificacion)
+                {
+                    <span class="tag @CalifClass(d.Calificacion)">@d.Calificacion: @d.Count</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">Sin datos de proveedores.</div>
+        }
+    </div>
+
+    <div class="card">
+        <h2>Volumen auditado</h2>
+        <table class="mini">
+            <tbody>
+                <tr><td>Líneas totales (histórico)</td><td class="text-right"><strong>@Model.TotalLineas</strong></td></tr>
+                <tr><td>Recibidas</td><td class="text-right">@Model.LineasRecibidas</td></tr>
+                <tr><td>Pendientes</td><td class="text-right">@Model.LineasPendientes</td></tr>
+                <tr><td>En falta</td><td class="text-right">@Model.LineasEnFalta</td></tr>
+                <tr><td>Anuladas</td><td class="text-right">@Model.LineasAnuladas</td></tr>
+                <tr><td>Reclamaciones emitidas</td><td class="text-right">@Model.TotalReclamaciones</td></tr>
+                <tr><td>Entregadas a tiempo / tarde</td><td class="text-right">@Model.EntregadasATiempo / @Model.EntregadasTarde</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <form method="get" class="flex flex-wrap mobile-stack no-print" style="margin-bottom:16px" role="search">
+        <label class="sr-only" for="audit-search">Buscar proveedores</label>
+        <input id="audit-search" type="search" name="search" value="@Model.Search" placeholder="Buscar por nombre o código…" style="max-width:320px" />
+        <label class="checkbox-inline">
+            <input type="checkbox" name="am" value="true" checked="@Model.SoloAcuerdoMarco" onchange="this.form.submit()" />
+            Solo acuerdo marco
+        </label>
+        <label class="sr-only" for="audit-orden">Ordenar</label>
+        <select id="audit-orden" name="orden" onchange="this.form.submit()">
+            <option value="cumplimiento" selected="@(Model.Orden == "cumplimiento")">Peor cumplimiento primero</option>
+            <option value="nombre" selected="@(Model.Orden == "nombre")">Nombre (A-Z)</option>
+            <option value="entrega" selected="@(Model.Orden == "entrega")">Mayor tiempo de entrega</option>
+            <option value="reclamaciones" selected="@(Model.Orden == "reclamaciones")">Más reclamaciones</option>
+            <option value="pendientes" selected="@(Model.Orden == "pendientes")">Más pendientes fuera de plazo</option>
+        </select>
+        <button type="submit" class="btn">Aplicar</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Search) || Model.SoloAcuerdoMarco)
+        {
+            <a class="btn" asp-action="Auditoria">Limpiar</a>
+        }
+    </form>
+
+    @if (Model.Filas.Count == 0)
+    {
+        <div class="empty-state">No hay proveedores que mostrar.</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th>Proveedor</th>
+                        <th title="Acuerdo marco">AM</th>
+                        <th title="Plazo aplicable (días hábiles)">Plazo</th>
+                        <th>Líneas</th>
+                        <th>Pend.</th>
+                        <th title="Pendientes fuera de plazo">Fuera pl.</th>
+                        <th title="% de recibidas entregadas a tiempo">% a tiempo</th>
+                        <th title="Tiempo medio de entrega (días hábiles)">T. entrega</th>
+                        <th title="Líneas reclamadas / reclamaciones totales">Reclam.</th>
+                        <th title="Tasa de respuesta a reclamaciones">Resp.</th>
+                        <th>Calificación</th>
+                        <th class="no-print"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Model.Filas)
+                    {
+                        <tr class="@(f.Incumple ? "row-critico" : "")">
+                            <td class="wrap">
+                                <a asp-action="AuditoriaDetalle" asp-route-codigo="@f.Proveedor.Codigo">@f.Proveedor.Nombre</a>
+                                <div class="muted" style="font-size:12px">@f.Proveedor.Codigo</div>
+                            </td>
+                            <td>@if (f.Proveedor.AcuerdoMarco) { <span class="tag tag-am">AM</span> }</td>
+                            <td>@f.PlazoAplicable d</td>
+                            <td>@f.TotalLineas</td>
+                            <td>@f.Pendientes</td>
+                            <td>
+                                @if (f.PendientesFueraPlazo > 0) { <span class="tag tag-missing">@f.PendientesFueraPlazo</span> }
+                                else { <span class="muted">0</span> }
+                            </td>
+                            <td>@Pct(f.PorcentajeATiempo)</td>
+                            <td>@Num(f.TiempoMedioEntrega) <span class="muted">d</span></td>
+                            <td>@f.LineasReclamadas <span class="muted">/ @f.TotalReclamaciones</span></td>
+                            <td>@Pct(f.TasaRespuesta)</td>
+                            <td>
+                                <span class="tag @CalifClass(f.Calificacion)" title="Puntuación @Math.Round(f.Puntuacion)/100">@f.Calificacion</span>
+                            </td>
+                            <td class="no-print"><a class="btn btn-sm" asp-action="AuditoriaDetalle" asp-route-codigo="@f.Proveedor.Codigo">Auditar</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

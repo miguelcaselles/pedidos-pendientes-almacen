@@ -10,6 +10,7 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddDataProtection();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<PedidosOverviewService>();
+builder.Services.AddScoped<AuditoriaService>();
 
 var app = builder.Build();
 

@@ -12,13 +12,17 @@ namespace PedidosPendientes.Web.Controllers;
 /// </summary>
 public class ProveedoresController : Controller
 {
+    private const string XlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
     private readonly AppDbContext _db;
     private readonly PedidosOverviewService _overview;
+    private readonly AuditoriaService _auditoria;
 
-    public ProveedoresController(AppDbContext db, PedidosOverviewService overview)
+    public ProveedoresController(AppDbContext db, PedidosOverviewService overview, AuditoriaService auditoria)
     {
         _db = db;
         _overview = overview;
+        _auditoria = auditoria;
     }
 
     public async Task<IActionResult> Index(string? search, bool am, CancellationToken ct)
@@ -63,6 +67,43 @@ public class ProveedoresController : Controller
         };
 
         return View(vm);
+    }
+
+    /// <summary>Auditoría global de proveedores (KPIs + ranking de cumplimiento).</summary>
+    public async Task<IActionResult> Auditoria(string? search, bool am, string? orden, CancellationToken ct)
+    {
+        var vm = await _auditoria.GetGlobalAsync(search, am, orden, ct);
+        return View(vm);
+    }
+
+    /// <summary>Auditoría detallada de un proveedor concreto.</summary>
+    public async Task<IActionResult> AuditoriaDetalle(string codigo, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(codigo)) return RedirectToAction(nameof(Auditoria));
+        var detalle = await _auditoria.GetProveedorAsync(codigo, ct);
+        if (detalle is null) return NotFound();
+        return View(detalle);
+    }
+
+    /// <summary>Exportación Excel de la auditoría global.</summary>
+    public async Task<IActionResult> AuditoriaExcel(string? search, bool am, string? orden, CancellationToken ct)
+    {
+        var vm = await _auditoria.GetGlobalAsync(search, am, orden, ct);
+        var bytes = AuditoriaExcelBuilder.Global(vm);
+        var nombre = $"auditoria-proveedores-{DateTime.Now:yyyyMMdd-HHmm}.xlsx";
+        return File(bytes, XlsxContentType, nombre);
+    }
+
+    /// <summary>Exportación Excel de la auditoría detallada de un proveedor.</summary>
+    public async Task<IActionResult> AuditoriaProveedorExcel(string codigo, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(codigo)) return RedirectToAction(nameof(Auditoria));
+        var detalle = await _auditoria.GetProveedorAsync(codigo, ct);
+        if (detalle is null) return NotFound();
+        var bytes = AuditoriaExcelBuilder.Proveedor(detalle);
+        var slug = new string((detalle.Resumen.Proveedor.Codigo).Where(char.IsLetterOrDigit).ToArray());
+        var nombre = $"auditoria-{slug}-{DateTime.Now:yyyyMMdd-HHmm}.xlsx";
+        return File(bytes, XlsxContentType, nombre);
     }
 
     [HttpGet]

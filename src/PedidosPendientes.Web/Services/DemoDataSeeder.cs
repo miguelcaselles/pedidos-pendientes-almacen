@@ -104,6 +104,80 @@ public static class DemoDataSeeder
         db.Orders.AddRange(recibidos);
         db.Orders.Add(anulado);
 
+        // --- Histórico ampliado: recepciones pasadas con tiempos de entrega
+        // variados por proveedor (para una auditoría rigurosa y con volumen). ---
+        var histResponses = new List<ProviderResponse>();
+        var histEmails = new List<EmailLog>();
+        var rnd = new Random(20260716); // determinista: misma demo en cada arranque
+        var descPool = new[]
+        {
+            "Compresa de gasa estéril", "Solución antiséptica 500 ml", "Electrodo de monitorización",
+            "Sonda de aspiración", "Guante estéril quirúrgico", "Esparadrapo hipoalergénico",
+            "Filtro antibacteriano", "Bolsa de diuresis", "Set de sueroterapia", "Torunda de algodón",
+            "Mascarilla FFP2", "Bata TNT reforzada", "Aguja de seguridad 21G", "Catéter periférico 18G",
+        };
+        var centros = new[] { "UCI", "QUIR", "URG", "HOSP", "LAB", "SERV" };
+        // Calidad simulada por proveedor (ratio de entregas dentro de plazo).
+        var calidad = new Dictionary<string, double>
+        {
+            ["D10001"] = 0.90, ["D10002"] = 0.72, ["D10003"] = 0.55, ["D10004"] = 0.66, ["D10005"] = 0.34,
+        };
+        long seq = 4500090000;
+        foreach (var pr in proveedores)
+        {
+            int plazo = pr.PlazoEntregaDias ?? 10;
+            double onTimeRatio = calidad.TryGetValue(pr.Codigo, out var q) ? q : 0.6;
+
+            // Recepciones históricas.
+            int nRec = rnd.Next(9, 14);
+            for (int i = 0; i < nRec; i++)
+            {
+                int daysAgoDoc = rnd.Next(35, 320);
+                bool onTime = rnd.NextDouble() < onTimeRatio;
+                int deliveryBiz = onTime ? rnd.Next(1, plazo + 1) : rnd.Next(plazo + 1, plazo + 9);
+                var doc = (seq++).ToString();
+                var mat = $"MAT-30{seq % 1000:000}";
+                var o = Order(doc, mat, descPool[rnd.Next(descPool.Length)], daysAgoDoc,
+                    pr.Codigo, pr.Nombre, "ALM-CENTRAL", centros[rnd.Next(centros.Length)], 0);
+                var recDate = PedidosPendientes.Core.BusinessDays.AddBusinessDays(o.FechaDocumento, deliveryBiz);
+                o.Recibido = true;
+                o.RecibidoAt = new DateTimeOffset(recDate.ToDateTime(new TimeOnly(11, 0)), now.Offset);
+                o.CantidadRecibida = rnd.Next(10, 500);
+
+                if (rnd.NextDouble() < 0.4) // reclamado antes de recibirse
+                {
+                    var recl = PedidosPendientes.Core.BusinessDays.AddBusinessDays(o.FechaDocumento, Math.Max(1, plazo - 1));
+                    o.Reclamado = true;
+                    o.ReclamadoAt = new DateTimeOffset(recl.ToDateTime(new TimeOnly(10, 0)), now.Offset);
+                    o.ReclamadoCount = rnd.NextDouble() < 0.3 ? 2 : 1;
+                    histEmails.Add(new EmailLog { DocumentoCompras = doc, ProveedorEmail = pr.Email ?? "sin-email@demo.example", Estado = "enviado", Tipo = "automatico", SentAt = o.ReclamadoAt.Value });
+                    if (rnd.NextDouble() < 0.6)
+                        histResponses.Add(new ProviderResponse { ProveedorNombre = pr.Nombre, DocumentoCompras = doc, Material = mat, Estado = "registrado_entregado", Comentario = "DEMO · Entrega confirmada por el proveedor.", RevisionEstado = "aplicada", CreatedAt = o.ReclamadoAt.Value.AddDays(1) });
+                }
+                db.Orders.Add(o);
+            }
+
+            // Pendientes históricos con antigüedad variada (algunos fuera de plazo).
+            int nPend = rnd.Next(2, 5);
+            for (int i = 0; i < nPend; i++)
+            {
+                int daysAgoDoc = rnd.Next(4, 40);
+                var doc = (seq++).ToString();
+                var mat = $"MAT-30{seq % 1000:000}";
+                var o = Order(doc, mat, descPool[rnd.Next(descPool.Length)], daysAgoDoc,
+                    pr.Codigo, pr.Nombre, "ALM-CENTRAL", centros[rnd.Next(centros.Length)], rnd.Next(10, 400));
+                if (daysAgoDoc > 15 && rnd.NextDouble() < 0.7)
+                {
+                    o.Reclamado = true;
+                    o.ReclamadoAt = now.AddDays(-rnd.Next(2, 8));
+                    o.ReclamadoCount = 1;
+                }
+                db.Orders.Add(o);
+            }
+        }
+        db.ProviderResponses.AddRange(histResponses);
+        db.EmailLogs.AddRange(histEmails);
+
         var clasificaciones =
             new[] { "MAT-10001", "MAT-10002", "MAT-10003", "MAT-10006", "MAT-10009", "MAT-10013" }.Select(m => new MaterialClasificacion { Material = m, Clase = "A" })
             .Concat(new[] { "MAT-10004", "MAT-10005", "MAT-10007", "MAT-10010", "MAT-10014", "MAT-10015" }.Select(m => new MaterialClasificacion { Material = m, Clase = "B" }))

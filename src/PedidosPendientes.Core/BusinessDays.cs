@@ -16,6 +16,19 @@ public static class BusinessDays
         return d;
     }
 
+    /// <summary>Fecha resultante de sumar <paramref name="dias"/> días hábiles a <paramref name="from"/>.</summary>
+    public static DateOnly AddBusinessDays(DateOnly from, int dias)
+    {
+        var d = from;
+        while (dias > 0)
+        {
+            d = d.AddDays(1);
+            if (d.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday)
+                dias--;
+        }
+        return d;
+    }
+
     /// <summary>Cuenta los días hábiles transcurridos entre dos fechas (inclusivo del inicio, exclusivo del fin).</summary>
     public static int CountBusinessDays(DateOnly from, DateOnly to)
     {

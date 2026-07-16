@@ -421,3 +421,68 @@ table.mini td:last-child { text-align: right; }
   .risk-value { font-size: 26px; }
   .barchart { height: 110px; }
 }
+
+/* ===========================================================================
+   Auditoría de proveedores: sub-navegación, distribución, ficha e impresión.
+   =========================================================================== */
+
+/* Sub-pestañas dentro de una sección (Listado / Auditoría) */
+.subnav {
+  display: flex; gap: 6px; margin: 0 0 20px; padding: 4px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow-sm); width: fit-content; max-width: 100%;
+  overflow-x: auto;
+}
+.subnav-tab {
+  padding: 8px 18px; border-radius: 9px; font-weight: 600; font-size: 14px;
+  color: var(--muted-2); white-space: nowrap;
+}
+.subnav-tab:hover { background: var(--primary-light); text-decoration: none; }
+.subnav-tab.active { background: var(--primary); color: #fff; }
+
+/* Barra de distribución por calificación */
+.distrib-bar {
+  display: flex; height: 26px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--border); background: var(--background);
+}
+.distrib-seg { height: 100%; min-width: 3px; }
+.distrib-seg.tag-received { background: var(--success); }
+.distrib-seg.tag-am { background: var(--primary); }
+.distrib-seg.tag-claimed { background: var(--warning); }
+.distrib-seg.tag-missing { background: var(--danger); }
+.distrib-seg.tag-pending { background: var(--muted); }
+
+/* Ficha de datos del proveedor */
+.ficha-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 22px;
+}
+.ficha-grid > div { display: flex; flex-direction: column; gap: 2px; }
+.ficha-k { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.ficha-v { font-weight: 600; color: var(--foreground); word-break: break-word; }
+
+/* Meta de informe (solo visible al imprimir) */
+.report-meta { color: var(--muted-2); font-size: 12.5px; margin: 0 0 16px; }
+
+/* Selects con el mismo estilo que los inputs */
+select {
+  padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px;
+  background: #fff; color: var(--foreground); font-size: 14px; font-family: inherit;
+}
+
+/* Utilidades de impresión */
+.print-only { display: none; }
+
+@media print {
+  .site-header, .nav-tabs, .demo-banner, .site-footer, .no-print,
+  .skip-link, .page-heading-actions, .subnav { display: none !important; }
+  .print-only { display: block; }
+  body { background: #fff; font-size: 11pt; }
+  .container { padding: 0; }
+  .card, .stat { box-shadow: none !important; border: 1px solid #d5dde6 !important; break-inside: avoid; }
+  .stats { gap: 8px; }
+  .tag, .clase, .distrib-seg, .stat { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { color: inherit; text-decoration: none; }
+  h1, h2 { break-after: avoid; }
+  table { break-inside: auto; }
+  tr { break-inside: avoid; }
+}
