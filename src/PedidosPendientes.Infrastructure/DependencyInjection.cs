@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PedidosPendientes.Core.Abstractions;
 using PedidosPendientes.Infrastructure.Data;
+using PedidosPendientes.Infrastructure.Email;
 using PedidosPendientes.Infrastructure.Excel;
 using PedidosPendientes.Infrastructure.Services;
 
@@ -35,6 +36,9 @@ public static class DependencyInjection
         services.AddScoped<IClasificacionImportService, ClasificacionImportService>();
         services.AddScoped<ICecosImportService, CecosImportService>();
         services.AddScoped<ISettingsService, SettingsService>();
+
+        services.Configure<SmtpOptions>(config.GetSection(SmtpOptions.Section));
+        services.AddScoped<IReclamacionEmailService, SmtpReclamacionEmailService>();
 
         return services;
     }

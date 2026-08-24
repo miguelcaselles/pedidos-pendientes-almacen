@@ -16,4 +16,12 @@ public class ConfiguracionViewModel
     public int ClaseA { get; set; }
     public int ClaseB { get; set; }
     public int ClaseC { get; set; }
+
+    // Estado del correo institucional (solo lectura; se configura en el servidor).
+    public bool SmtpHabilitado { get; set; }
+    public bool SmtpModoPruebas { get; set; }
+    public string? SmtpHost { get; set; }
+    public string? SmtpFrom { get; set; }
+    public int EmailsEnviados30d { get; set; }
+    public int EmailsError30d { get; set; }
 }

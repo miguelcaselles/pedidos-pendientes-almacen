@@ -16,11 +16,14 @@ public class ConfiguracionController : Controller
 {
     private readonly AppDbContext _db;
     private readonly ISettingsService _settings;
+    private readonly Microsoft.Extensions.Options.IOptions<PedidosPendientes.Infrastructure.Email.SmtpOptions> _smtp;
 
-    public ConfiguracionController(AppDbContext db, ISettingsService settings)
+    public ConfiguracionController(AppDbContext db, ISettingsService settings,
+        Microsoft.Extensions.Options.IOptions<PedidosPendientes.Infrastructure.Email.SmtpOptions> smtp)
     {
         _db = db;
         _settings = settings;
+        _smtp = smtp;
     }
 
     [HttpGet]
@@ -43,6 +46,18 @@ public class ConfiguracionController : Controller
             ClaseB = clases.FirstOrDefault(c => c.Clase == "B")?.Total ?? 0,
             ClaseC = clases.FirstOrDefault(c => c.Clase == "C")?.Total ?? 0,
         };
+
+        var smtp = _smtp.Value;
+        vm.SmtpHabilitado = smtp.Enabled && !string.IsNullOrWhiteSpace(smtp.Host)
+            && !string.IsNullOrWhiteSpace(smtp.FromAddress);
+        vm.SmtpModoPruebas = smtp.ModoPruebas;
+        vm.SmtpHost = string.IsNullOrWhiteSpace(smtp.Host) ? null : smtp.Host;
+        vm.SmtpFrom = string.IsNullOrWhiteSpace(smtp.FromAddress) ? null : smtp.FromAddress;
+
+        var hace30d = DateTimeOffset.UtcNow.AddDays(-30);
+        vm.EmailsEnviados30d = await _db.EmailLogs.CountAsync(e => e.SentAt >= hace30d && e.Estado == "enviado", ct);
+        vm.EmailsError30d = await _db.EmailLogs.CountAsync(e => e.SentAt >= hace30d && e.Estado == "error", ct);
+
         return View(vm);
     }
 

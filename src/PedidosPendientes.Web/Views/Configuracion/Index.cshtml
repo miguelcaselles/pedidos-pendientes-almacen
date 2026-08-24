@@ -130,6 +130,34 @@
 </div>
 
 <div class="card">
+    <h2>Correo institucional (reclamaciones)</h2>
+    @if (Model.SmtpHabilitado)
+    {
+        <p class="hint">
+            <span class="tag tag-received">ACTIVADO</span>
+            @if (Model.SmtpModoPruebas)
+            {
+                <span class="tag tag-claimed" title="Todos los correos se desvían al buzón de pruebas configurado">MODO PRUEBAS</span>
+            }
+            Servidor <strong>@Model.SmtpHost</strong> · remitente <strong>@Model.SmtpFrom</strong>.
+            Al marcar "reclamar" en Pedidos se envía el correo al proveedor (si tiene email) y queda registrado.
+            Últimos 30 días: @Model.EmailsEnviados30d enviados, @Model.EmailsError30d con error.
+        </p>
+    }
+    else
+    {
+        <p class="hint">
+            <span class="tag tag-missing">NO CONFIGURADO</span>
+            El envío automático de reclamaciones requiere configurar la sección <code>Smtp</code>
+            en el servidor (host, remitente institucional y credenciales como variables de entorno:
+            <code>Smtp__Enabled</code>, <code>Smtp__Host</code>, <code>Smtp__FromAddress</code>,
+            <code>Smtp__User</code>, <code>Smtp__Password</code>…). Mientras tanto, "reclamar" solo
+            marca la línea y el correo se envía manualmente. Ver la guía de despliegue del repositorio.
+        </p>
+    }
+</div>
+
+<div class="card">
     <h2>Relación CECOs · Almacenes</h2>
     @if (Model.AlmacenCecos.Count == 0)
     {

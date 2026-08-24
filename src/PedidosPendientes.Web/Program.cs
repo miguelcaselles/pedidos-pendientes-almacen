@@ -12,6 +12,31 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<PedidosOverviewService>();
 builder.Services.AddScoped<AuditoriaService>();
 
+// --- Autenticación institucional (Active Directory) ---
+// Auth:Mode = "Windows" activa Negotiate (Kerberos/NTLM): en IIS con
+// autenticación de Windows o en Kestrel unido al dominio. Todo requiere
+// usuario autenticado; Auth:AllowedGroups (lista de grupos AD) restringe
+// además el acceso al personal de Suministros. Con "None" (por defecto)
+// no hay autenticación: solo para desarrollo y demo.
+var authMode = builder.Configuration.GetValue<string>("Auth:Mode") ?? "None";
+var windowsAuth = string.Equals(authMode, "Windows", StringComparison.OrdinalIgnoreCase);
+if (windowsAuth)
+{
+    builder.Services
+        .AddAuthentication(Microsoft.AspNetCore.Authentication.Negotiate.NegotiateDefaults.AuthenticationScheme)
+        .AddNegotiate();
+
+    var allowedGroups = builder.Configuration.GetSection("Auth:AllowedGroups").Get<string[]>() ?? [];
+    builder.Services.AddAuthorization(options =>
+    {
+        var policy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser();
+        if (allowedGroups.Length > 0)
+            policy.RequireRole(allowedGroups);
+        options.FallbackPolicy = policy.Build();
+    });
+}
+
 var app = builder.Build();
 
 // Render (y otros reverse proxies) termina TLS antes de llegar a Kestrel.
@@ -103,6 +128,8 @@ if (demoMode)
 }
 
 app.UseRouting();
+if (windowsAuth)
+    app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(

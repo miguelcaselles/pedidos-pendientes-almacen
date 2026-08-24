@@ -11,11 +11,14 @@ public class OrdersController : Controller
 {
     private readonly AppDbContext _db;
     private readonly PedidosOverviewService _overview;
+    private readonly Core.Abstractions.IReclamacionEmailService _email;
 
-    public OrdersController(AppDbContext db, PedidosOverviewService overview)
+    public OrdersController(AppDbContext db, PedidosOverviewService overview,
+        Core.Abstractions.IReclamacionEmailService email)
     {
         _db = db;
         _overview = overview;
+        _email = email;
     }
 
     public async Task<IActionResult> Index(string? search, string? estado, CancellationToken ct)
@@ -92,14 +95,38 @@ public class OrdersController : Controller
 
     // ----- Acciones de estado -----
 
+    /// <summary>
+    /// Marca la línea como reclamada y, si el SMTP institucional está configurado
+    /// y el proveedor tiene email, envía la reclamación por correo (el correo
+    /// agrupa todas las líneas pendientes del documento).
+    /// </summary>
     [HttpPost, ValidateAntiForgeryToken]
-    public Task<IActionResult> Reclamar(int id, string? estado, string? search, CancellationToken ct)
-        => Cambiar(id, estado, search, o =>
+    public async Task<IActionResult> Reclamar(int id, string? estado, string? search, CancellationToken ct)
+    {
+        var order = await _db.Orders.FindAsync([id], ct);
+        if (order is null)
         {
-            o.Reclamado = true;
-            o.ReclamadoAt = DateTimeOffset.UtcNow;
-            o.ReclamadoCount++;
-        }, "Pedido marcado como reclamado.", ct);
+            TempData["Error"] = "No se encontró la línea de pedido.";
+            return RedirectToAction(nameof(Index), new { estado, search });
+        }
+
+        // El asunto del correo distingue reenvíos según el contador previo.
+        var resultado = await _email.EnviarAsync(order, "manual", ct);
+
+        order.Reclamado = true;
+        order.ReclamadoAt = DateTimeOffset.UtcNow;
+        order.ReclamadoCount++;
+        await _db.SaveChangesAsync(ct);
+
+        if (resultado.Enviado)
+            TempData["Success"] = $"Pedido marcado como reclamado. {resultado.Detalle}";
+        else if (resultado.Motivo == "deshabilitado")
+            TempData["Success"] = "Pedido marcado como reclamado (envío por correo no configurado).";
+        else
+            TempData["Error"] = $"Pedido marcado como reclamado, pero el correo no salió: {resultado.Detalle}";
+
+        return RedirectToAction(nameof(Index), new { estado, search });
+    }
 
     [HttpPost, ValidateAntiForgeryToken]
     public Task<IActionResult> Recibir(int id, string? estado, string? search, CancellationToken ct)
