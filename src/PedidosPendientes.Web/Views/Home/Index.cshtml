@@ -146,10 +146,17 @@
                 </td>
             </tr>
             <tr>
-                <td>Semáforo MD04 (NEXUS)</td>
+                <td>MD04 · Almacenaje (NEXUS)</td>
                 <td>
                     @if (Model.UltimaMd04 is null) { <span class="tag tag-missing">Nunca</span> }
                     else { <span class="tag tag-received">@Model.UltimaMd04.At.LocalDateTime.ToString("dd/MM HH:mm")</span> }
+                </td>
+            </tr>
+            <tr>
+                <td>MD04 · No almacenaje (NEXUS)</td>
+                <td>
+                    @if (Model.UltimaMd04Na is null) { <span class="tag tag-missing">Nunca</span> }
+                    else { <span class="tag tag-received">@Model.UltimaMd04Na.At.LocalDateTime.ToString("dd/MM HH:mm")</span> }
                 </td>
             </tr>
             <tr>
@@ -157,6 +164,13 @@
                 <td>
                     @if (Model.UltimaAbc is null) { <span class="tag tag-missing">Nunca</span> }
                     else { <span class="tag tag-received">@Model.UltimaAbc.At.LocalDateTime.ToString("dd/MM HH:mm")</span> }
+                </td>
+            </tr>
+            <tr>
+                <td>Relación CECOs · Almacenes</td>
+                <td>
+                    @if (Model.UltimaCecos is null) { <span class="tag tag-missing">Nunca</span> }
+                    else { <span class="tag tag-received">@Model.UltimaCecos.At.LocalDateTime.ToString("dd/MM HH:mm")</span> }
                 </td>
             </tr>
             </tbody>

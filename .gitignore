@@ -485,3 +485,7 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Ficheros de ejemplo con datos reales del hospital (no se versionan)
+/*.XLSX
+/*.xlsx

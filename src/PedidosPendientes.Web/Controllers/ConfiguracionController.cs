@@ -36,6 +36,8 @@ public class ConfiguracionController : Controller
             Parametros = await _settings.GetParametrosAsync(ct),
             Criticidades = await _db.CriticidadUbicaciones.AsNoTracking()
                 .OrderBy(c => c.Tipo).ThenBy(c => c.Codigo).ToListAsync(ct),
+            AlmacenCecos = await _db.AlmacenCecos.AsNoTracking()
+                .OrderBy(a => a.Almacen).ToListAsync(ct),
             MaterialesClasificados = clases.Sum(c => c.Total),
             ClaseA = clases.FirstOrDefault(c => c.Clase == "A")?.Total ?? 0,
             ClaseB = clases.FirstOrDefault(c => c.Clase == "B")?.Total ?? 0,
@@ -92,6 +94,61 @@ public class ConfiguracionController : Controller
         await _db.SaveChangesAsync(ct);
 
         TempData["Success"] = $"Ubicación crítica {codigo} añadida.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Marca como crítica una fila de la relación CECOs - Almacenes: crea la
+    /// criticidad del almacén y la de su centro de coste (si no existían ya).
+    /// </summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> MarcarCriticoDesdeCeco(int id, string nivel, CancellationToken ct)
+    {
+        nivel = nivel == "alto" ? "alto" : "critico";
+        var fila = await _db.AlmacenCecos.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct);
+        if (fila is null)
+        {
+            TempData["Error"] = "No se encontró la fila de la relación CECOs - Almacenes.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var descripcion = fila.Descripcion ?? fila.DenominacionAlmacen ?? fila.Almacen;
+        int nuevas = 0;
+
+        if (!await _db.CriticidadUbicaciones.AnyAsync(c => c.Tipo == "almacen" && c.Codigo == fila.Almacen, ct))
+        {
+            _db.CriticidadUbicaciones.Add(new CriticidadUbicacion
+            {
+                Tipo = "almacen",
+                Codigo = fila.Almacen,
+                Descripcion = descripcion,
+                Nivel = nivel,
+            });
+            nuevas++;
+        }
+
+        if (!string.IsNullOrWhiteSpace(fila.CentroCoste)
+            && !await _db.CriticidadUbicaciones.AnyAsync(c => c.Tipo == "centroCoste" && c.Codigo == fila.CentroCoste, ct))
+        {
+            _db.CriticidadUbicaciones.Add(new CriticidadUbicacion
+            {
+                Tipo = "centroCoste",
+                Codigo = fila.CentroCoste!,
+                Descripcion = descripcion,
+                Nivel = nivel,
+            });
+            nuevas++;
+        }
+
+        if (nuevas > 0)
+        {
+            await _db.SaveChangesAsync(ct);
+            TempData["Success"] = $"Ubicación {fila.Almacen} marcada como {(nivel == "alto" ? "alta" : "crítica")} (almacén y centro de coste).";
+        }
+        else
+        {
+            TempData["Error"] = $"La ubicación {fila.Almacen} ya estaba parametrizada.";
+        }
         return RedirectToAction(nameof(Index));
     }
 

@@ -65,6 +65,14 @@ public static class DemoDataSeeder
             Order("4500098112", "MAT-10012", "Papel secamanos industrial", 25, "D10003", proveedores[2].Nombre, "ALM-GENERAL", "SERV", 96),
         };
 
+        // Contratos marco por línea, como vienen en el ME2N real (proveedores con acuerdo marco).
+        foreach (var o in orders)
+        {
+            o.CantidadPedido = o.PorEntregarCantidad;
+            if (o.ProveedorCodigo is "D10001" or "D10002" or "D10004")
+                o.ContratoMarco = $"48000{Math.Abs(o.DocumentoCompras.GetHashCode()) % 90000 + 10000}";
+        }
+
         orders[1].Reclamado = true;
         orders[1].ReclamadoAt = now.AddDays(-5);
         orders[1].ReclamadoCount = 1;
@@ -190,29 +198,73 @@ public static class DemoDataSeeder
             new CriticidadUbicacion { Tipo = "centroCoste", Codigo = "URG", Descripcion = "Urgencias", Nivel = "alto" },
             new CriticidadUbicacion { Tipo = "almacen", Codigo = "ALM-ESTERIL", Descripcion = "Material estéril", Nivel = "alto" });
 
-        var stock = new (string Material, string Texto, string Almacen, string Estado, decimal Stock, decimal Minimo, decimal Consumo)[]
+        // MD04 con el formato real de NEXUS: Status ("XOO" rojo / "OOX" verde),
+        // Área pl.nec. y excepciones ME3 (pedido fuera de plazo) / ME6 (bajo stock de seguridad).
+        var stock = new (string Material, string Texto, string Estado, int? Me3, int? Me6)[]
         {
-            ("MAT-10001", "Guantes de nitrilo sin polvo · talla M", "ALM-CENTRAL", "rojo", 24, 180, 55),
-            ("MAT-10002", "Mascarilla quirúrgica tipo IIR", "ALM-CENTRAL", "rojo", 90, 500, 120),
-            ("MAT-10018", "Tubular de malla elástica", "ALM-CENTRAL", "rojo", 2, 30, 8),
-            ("MAT-10019", "Funda estéril para equipos", "ALM-ESTERIL", "rojo", 0, 20, 6),
-            ("MAT-10020", "Kit de curas universal", "ALM-CENTRAL", "rojo", 4, 40, 12),
-            ("MAT-10005", "Contenedor biosanitario 10 L", "ALM-CENTRAL", "amarillo", 52, 60, 15),
-            ("MAT-10007", "Empapador absorbente", "ALM-PLANTA", "amarillo", 180, 220, 45),
-            ("MAT-10010", "Campo quirúrgico fenestrado", "ALM-ESTERIL", "amarillo", 74, 90, 18),
-            ("MAT-10011", "Bolsa autocierre para muestras", "ALM-LAB", "verde", 1600, 600, 110),
-            ("MAT-10013", "Venda elástica cohesiva", "ALM-CENTRAL", "verde", 210, 80, 20),
+            ("MAT-10001", "Guantes de nitrilo sin polvo · talla M", "XOO", 1, 1),
+            ("MAT-10002", "Mascarilla quirúrgica tipo IIR", "XOO", null, 1),
+            ("MAT-10018", "Tubular de malla elástica", "XOO", 1, null),
+            ("MAT-10019", "Funda estéril para equipos", "XOO", 2, 1),
+            ("MAT-10020", "Kit de curas universal", "XOO", null, 1),
+            ("MAT-10005", "Contenedor biosanitario 10 L", "OXO", 1, null),
+            ("MAT-10007", "Empapador absorbente", "OXO", null, null),
+            ("MAT-10010", "Campo quirúrgico fenestrado", "OXO", 1, null),
+            ("MAT-10011", "Bolsa autocierre para muestras", "OOX", null, null),
+            ("MAT-10013", "Venda elástica cohesiva", "OOX", null, null),
         };
         db.StockMd04.AddRange(stock.Select(s => new StockMd04Item
         {
+            Ambito = "almacenaje",
             Material = s.Material,
             TextoBreve = s.Texto,
-            Almacen = s.Almacen,
-            Semaforo = s.Estado,
-            Stock = s.Stock,
-            PuntoPedido = s.Minimo,
-            ConsumoMedio = s.Consumo,
+            Semaforo = s.Estado[0] is 'X' ? "rojo" : s.Estado[1] is 'X' ? "amarillo" : "verde",
+            StatusNexus = s.Estado,
+            AreaPlanificacion = "L025-1000",
+            PedidosFueraPlazo = s.Me3,
+            BajoStockSeguridad = s.Me6,
             CargadoAt = now.AddMinutes(-24),
+        }));
+
+        var stockNa = new (string Material, string Texto, string Estado, int? Me3, int? Me6)[]
+        {
+            ("MAT-20001", "Prótesis de cadera no cementada", "XOO", 1, null),
+            ("MAT-20002", "Lente intraocular plegable +21D", "XOO", null, 1),
+            ("MAT-20003", "Malla quirúrgica de polipropileno", "OOX", null, null),
+            ("MAT-20004", "Grapadora circular 29 mm", "OOX", null, null),
+        };
+        db.StockMd04.AddRange(stockNa.Select(s => new StockMd04Item
+        {
+            Ambito = "noalmacenaje",
+            Material = s.Material,
+            TextoBreve = s.Texto,
+            Semaforo = s.Estado[0] is 'X' ? "rojo" : "verde",
+            StatusNexus = s.Estado,
+            AreaPlanificacion = "L025-2000",
+            PedidosFueraPlazo = s.Me3,
+            BajoStockSeguridad = s.Me6,
+            CargadoAt = now.AddMinutes(-22),
+        }));
+
+        // Relación CECOs - Almacenes (con las ubicaciones que usa el escenario).
+        var cecos = new (string Almacen, string DenAlm, string Cc, string DenCc, string Desc)[]
+        {
+            ("ALM-CENTRAL", "Almacén general", "SERV", "SERVICIOS GENERALES", "ALMACÉN GENERAL DE SUMINISTROS"),
+            ("ALM-ESTERIL", "Almacén estéril", "QUIR", "BLOQUE QUIRÚRGICO", "BLOQUE QUIRÚRGICO Y ESTERILIZACIÓN"),
+            ("ALM-PLANTA", "Almacén de planta 2A", "HOSP", "U DE HOSPITALIZ 2A", "UNIDAD DE HOSPITALIZACIÓN 2A"),
+            ("ALM-LAB", "Almacén laboratorio", "LAB", "LABORATORIO CLÍNICO", "LABORATORIO DE ANÁLISIS CLÍNICOS"),
+            ("ALM-UCI", "Almacén UCI", "UCI", "MEDICINA INTENSIVA", "UNIDAD DE CUIDADOS INTENSIVOS"),
+            ("ALM-URG", "Almacén urgencias", "URG", "URGENCIAS", "URGENCIAS GENERALES"),
+        };
+        db.AlmacenCecos.AddRange(cecos.Select(c => new AlmacenCeco
+        {
+            Centro = "L025",
+            Almacen = c.Almacen,
+            DenominacionAlmacen = c.DenAlm,
+            CentroCoste = c.Cc,
+            DenominacionCentroCoste = c.DenCc,
+            Descripcion = c.Desc,
+            CargadoAt = now.AddMinutes(-20),
         }));
 
         db.ProviderResponses.AddRange(
@@ -221,8 +273,10 @@ public static class DemoDataSeeder
             new ProviderResponse { ProveedorNombre = proveedores[1].Nombre, DocumentoCompras = "4500098094", Material = "MAT-10016", Estado = "no_localizado", Comentario = "DEMO · Incidencia histórica resuelta.", RevisionEstado = "aplicada", CreatedAt = now.AddMonths(-2) });
 
         db.UploadLogs.AddRange(
-            new UploadLog { Tipo = "pedidos", FileName = "DEMO_pedidos_pendientes_SAP.xlsx", Success = true, Filas = 17, Insertados = 17, Message = "Escenario de demostración cargado correctamente.", At = now.AddMinutes(-38) },
-            new UploadLog { Tipo = "md04", FileName = "DEMO_semaforo_MD04.xlsx", Success = true, Filas = stock.Length, Insertados = stock.Length, Message = "Instantánea MD04 de demostración cargada.", At = now.AddMinutes(-24) },
+            new UploadLog { Tipo = "pedidos", FileName = "DEMO_ME2N_pendientes_entrega.xlsx", Success = true, Filas = 17, Insertados = 17, Message = "Escenario de demostración cargado correctamente.", At = now.AddMinutes(-38) },
+            new UploadLog { Tipo = "md04", FileName = "DEMO_MD04_almacenaje.xlsx", Success = true, Filas = stock.Length, Insertados = stock.Length, Message = "Instantánea MD04 de almacenaje cargada.", At = now.AddMinutes(-24) },
+            new UploadLog { Tipo = "md04na", FileName = "DEMO_MD04_no_almacenaje.xlsx", Success = true, Filas = stockNa.Length, Insertados = stockNa.Length, Message = "Instantánea MD04 de no almacenaje cargada.", At = now.AddMinutes(-22) },
+            new UploadLog { Tipo = "cecos", FileName = "DEMO_relacion_cecos_almacenes.xlsx", Success = true, Filas = cecos.Length, Insertados = cecos.Length, Message = "Relación CECOs - Almacenes de demostración cargada.", At = now.AddMinutes(-20) },
             new UploadLog { Tipo = "abc", FileName = "DEMO_clasificacion_ABC.xlsx", Success = true, Filas = 17, Insertados = 17, Message = "Clasificación de demostración actualizada.", At = now.AddMinutes(-16) });
 
         db.EmailLogs.AddRange(

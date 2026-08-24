@@ -6,8 +6,10 @@ using PedidosPendientes.Web.Models;
 namespace PedidosPendientes.Web.Controllers;
 
 /// <summary>
-/// Semáforo NEXUS MD04: materiales de almacenaje bajo mínimo (rojo) cruzados con
-/// los pedidos pendientes, para detectar los que NO tienen pedido lanzado.
+/// Semáforo NEXUS MD04: materiales en rojo (Status) cruzados con los pedidos
+/// pendientes para detectar los que NO tienen pedido lanzado, con las excepciones
+/// importantes del listado: ME3 (pedido fuera de plazo de entrega) y ME6 (por
+/// debajo de stock de seguridad). Dos pestañas: almacenaje y no almacenaje.
 /// </summary>
 public class SemaforoController : Controller
 {
@@ -15,12 +17,20 @@ public class SemaforoController : Controller
 
     public SemaforoController(AppDbContext db) => _db = db;
 
-    public async Task<IActionResult> Index(string? filtro, CancellationToken ct)
+    public async Task<IActionResult> Index(string? ambito, string? filtro, CancellationToken ct)
     {
+        ambito = (ambito ?? "almacenaje").ToLowerInvariant() == "noalmacenaje" ? "noalmacenaje" : "almacenaje";
         filtro = (filtro ?? "sinpedido").ToLowerInvariant();
 
+        var totales = await _db.StockMd04.AsNoTracking()
+            .GroupBy(s => s.Ambito)
+            .Select(g => new { Ambito = g.Key, Total = g.Count() })
+            .ToListAsync(ct);
+
         var items = await _db.StockMd04.AsNoTracking()
+            .Where(s => s.Ambito == ambito)
             .OrderBy(s => s.Semaforo == "rojo" ? 0 : s.Semaforo == "amarillo" ? 1 : 2)
+            .ThenByDescending(s => (s.PedidosFueraPlazo ?? 0) + (s.BajoStockSeguridad ?? 0))
             .ThenBy(s => s.Material)
             .ToListAsync(ct);
 
@@ -42,14 +52,22 @@ public class SemaforoController : Controller
         var vm = new SemaforoViewModel
         {
             CargadoAt = items.Count > 0 ? items.Max(i => i.CargadoAt) : null,
+            Ambito = ambito,
+            TotalAlmacenaje = totales.FirstOrDefault(t => t.Ambito == "almacenaje")?.Total ?? 0,
+            TotalNoAlmacenaje = totales.FirstOrDefault(t => t.Ambito == "noalmacenaje")?.Total ?? 0,
             Rojos = rows.Count(r => r.Item.Semaforo == "rojo"),
             RojosSinPedido = rows.Count(r => r.Item.Semaforo == "rojo" && !r.TienePedido),
             Amarillos = rows.Count(r => r.Item.Semaforo == "amarillo"),
             Verdes = rows.Count(r => r.Item.Semaforo == "verde"),
+            FueraPlazo = rows.Count(r => r.Item.PedidosFueraPlazo > 0),
+            BajoSeguridad = rows.Count(r => r.Item.BajoStockSeguridad > 0),
+            MuestraStock = rows.Any(r => r.Item.Stock is not null || r.Item.PuntoPedido is not null),
             Filtro = filtro,
             Rows = filtro switch
             {
                 "rojos" => rows.Where(r => r.Item.Semaforo == "rojo").ToList(),
+                "fueraplazo" => rows.Where(r => r.Item.PedidosFueraPlazo > 0).ToList(),
+                "bajoseguridad" => rows.Where(r => r.Item.BajoStockSeguridad > 0).ToList(),
                 "todos" => rows,
                 _ => rows.Where(r => r.Item.Semaforo == "rojo" && !r.TienePedido).ToList(),
             },

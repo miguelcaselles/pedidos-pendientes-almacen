@@ -74,7 +74,17 @@
                 <option value="almacen">Almacén</option>
                 <option value="centroCoste">Centro de coste</option>
             </select>
-            <input type="text" name="codigo" placeholder="Código" required style="max-width:120px" />
+            <input type="text" name="codigo" placeholder="Código" required style="max-width:120px" list="codigos-conocidos" />
+            <datalist id="codigos-conocidos">
+                @foreach (var a in Model.AlmacenCecos)
+                {
+                    <option value="@a.Almacen">@(a.DenominacionAlmacen ?? a.Almacen) (almacén)</option>
+                    if (a.CentroCoste is not null)
+                    {
+                        <option value="@a.CentroCoste">@(a.DenominacionCentroCoste ?? a.CentroCoste) (CECO)</option>
+                    }
+                }
+            </datalist>
             <input type="text" name="descripcion" placeholder="Descripción (UCI…)" style="max-width:180px" />
             <select name="nivel" style="max-width:110px">
                 <option value="critico">Crítico</option>
@@ -117,4 +127,61 @@
             </div>
         }
     </div>
+</div>
+
+<div class="card">
+    <h2>Relación CECOs · Almacenes</h2>
+    @if (Model.AlmacenCecos.Count == 0)
+    {
+        <p class="hint">
+            Aún no se ha cargado la relación de almacenes y centros de coste.
+            <a asp-controller="Carga" asp-action="Index">Cargar el Excel de relación</a>.
+        </p>
+    }
+    else
+    {
+        <p class="hint">
+            @Model.AlmacenCecos.Count almacenes cargados. Desde aquí puedes marcar una ubicación
+            como crítica: se parametrizan a la vez el almacén y su centro de coste.
+        </p>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                    <tr><th>Almacén</th><th>Denominación</th><th>Centro de coste</th><th>Unidad</th><th>Criticidad</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in Model.AlmacenCecos)
+                    {
+                        var critAlm = Model.Criticidades.FirstOrDefault(c => c.Tipo == "almacen" && c.Codigo == a.Almacen);
+                        var critCc = a.CentroCoste is null ? null
+                            : Model.Criticidades.FirstOrDefault(c => c.Tipo == "centroCoste" && c.Codigo == a.CentroCoste);
+                        var crit = critAlm ?? critCc;
+                        <tr>
+                            <td>@a.Almacen</td>
+                            <td class="wrap">@a.DenominacionAlmacen</td>
+                            <td>@a.CentroCoste</td>
+                            <td class="wrap">@(a.Descripcion ?? a.DenominacionCentroCoste)</td>
+                            <td>
+                                @if (crit is not null)
+                                {
+                                    <span class="tag tag-critico @(crit.Nivel == "alto" ? "is-alto" : "")">@(crit.Nivel == "alto" ? "Alto" : "Crítico")</span>
+                                }
+                                else
+                                {
+                                    <form method="post" asp-action="MarcarCriticoDesdeCeco" asp-route-id="@a.Id" class="flex" style="gap:6px">
+                                        @Html.AntiForgeryToken()
+                                        <select name="nivel" style="max-width:100px">
+                                            <option value="critico">Crítico</option>
+                                            <option value="alto">Alto</option>
+                                        </select>
+                                        <button type="submit" class="btn btn-sm">Marcar</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>

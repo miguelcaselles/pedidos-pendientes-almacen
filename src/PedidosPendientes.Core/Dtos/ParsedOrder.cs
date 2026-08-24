@@ -19,5 +19,7 @@ public class ParsedOrder
     public string? ProveedorNombre { get; set; }
     public string? ReferenciaProveedor { get; set; }
     public string? Almacen { get; set; }
+    public decimal? CantidadPedido { get; set; }
     public decimal? PorEntregarCantidad { get; set; }
+    public string? ContratoMarco { get; set; }
 }

@@ -10,16 +10,17 @@
     <div class="page-heading-main">
         <div class="eyebrow">Actualización de datos</div>
         <h1 class="page-title">Cargas de archivos</h1>
-        <p class="page-sub">Actualiza las tres fuentes en orden. La aplicación valida las cabeceras y conserva la gestión realizada.</p>
+        <p class="page-sub">Actualiza las fuentes en orden. La aplicación valida las cabeceras y conserva la gestión realizada.</p>
     </div>
 </div>
 
 <div class="grid-3">
     <div class="card upload-card">
-        <h2><span class="upload-step">1</span>Pedidos pendientes (SAP)</h2>
+        <h2><span class="upload-step">1</span>Pedidos pendientes (ME2N)</h2>
         <p class="hint">
-            Exportación de pedidos pendientes del almacén. Carga <strong>no destructiva</strong>:
-            conserva recibido, reclamado, anulado y comentarios.
+            Exportación ME2N de pedidos pendientes de entrega. Carga <strong>no destructiva</strong>:
+            conserva recibido, reclamado, anulado y comentarios. La columna
+            <em>Contrato marco</em> marca automáticamente el acuerdo marco del proveedor.
         </p>
         <p class="upload-status">
             Última carga: <strong>@Cuando(Model.UltimaPedidos)</strong>
@@ -38,10 +39,11 @@
     </div>
 
     <div class="card upload-card">
-        <h2><span class="upload-step">2</span>Semáforo MD04 (NEXUS)</h2>
+        <h2><span class="upload-step">2</span>MD04 · Almacenaje</h2>
         <p class="hint">
-            Listado de necesidades de almacenaje. Cada carga <strong>sustituye</strong> la
-            anterior (es la foto del día). Alimenta la pestaña Semáforo.
+            Listado MD04 de NEXUS de materiales de <strong>almacenaje</strong>
+            (Status, ME3 pedido fuera de plazo, ME6 bajo stock de seguridad).
+            Cada carga <strong>sustituye</strong> la anterior de este ámbito.
         </p>
         <p class="upload-status">
             Última carga: <strong>@Cuando(Model.UltimaMd04)</strong>
@@ -52,15 +54,40 @@
         </p>
         <form asp-action="Md04" method="post" enctype="multipart/form-data">
             @Html.AntiForgeryToken()
+            <input type="hidden" name="ambito" value="almacenaje" />
             <div class="form-row">
-                <input type="file" name="archivo" accept=".xlsx,.xlsm" required aria-label="Excel MD04" />
+                <input type="file" name="archivo" accept=".xlsx,.xlsm" required aria-label="Excel MD04 almacenaje" />
             </div>
-            <button type="submit" class="btn btn-primary">Cargar MD04</button>
+            <button type="submit" class="btn btn-primary">Cargar MD04 almacenaje</button>
         </form>
     </div>
 
     <div class="card upload-card">
-        <h2><span class="upload-step">3</span>Clasificación A/B/C</h2>
+        <h2><span class="upload-step">3</span>MD04 · No almacenaje</h2>
+        <p class="hint">
+            Listado MD04 de NEXUS de materiales de <strong>no almacenaje</strong>.
+            Independiente del de almacenaje: cada carga sustituye solo la anterior
+            de este ámbito.
+        </p>
+        <p class="upload-status">
+            Última carga: <strong>@Cuando(Model.UltimaMd04Na)</strong>
+            @if (Model.UltimaMd04Na is not null)
+            {
+                <span class="muted">(@Model.UltimaMd04Na.FileName, @Model.UltimaMd04Na.Filas filas)</span>
+            }
+        </p>
+        <form asp-action="Md04" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="ambito" value="noalmacenaje" />
+            <div class="form-row">
+                <input type="file" name="archivo" accept=".xlsx,.xlsm" required aria-label="Excel MD04 no almacenaje" />
+            </div>
+            <button type="submit" class="btn btn-primary">Cargar MD04 no almacenaje</button>
+        </form>
+    </div>
+
+    <div class="card upload-card">
+        <h2><span class="upload-step">4</span>Clasificación A/B/C</h2>
         <p class="hint">
             Listado de urgencia por código NEXUS (columnas: material y clase A/B/C).
             Parametriza los plazos de reclamación. Carga acumulativa.
@@ -80,6 +107,29 @@
             <button type="submit" class="btn btn-primary">Cargar clasificación</button>
         </form>
     </div>
+
+    <div class="card upload-card">
+        <h2><span class="upload-step">5</span>Relación CECOs · Almacenes</h2>
+        <p class="hint">
+            Relación de almacenes de planta con sus centros de coste y denominaciones.
+            Da nombre legible a los códigos y alimenta la parametrización de
+            criticidad (UCI, quirófano...). Cada carga sustituye la anterior.
+        </p>
+        <p class="upload-status">
+            Última carga: <strong>@Cuando(Model.UltimaCecos)</strong>
+            @if (Model.UltimaCecos is not null)
+            {
+                <span class="muted">(@Model.UltimaCecos.FileName, @Model.UltimaCecos.Filas filas)</span>
+            }
+        </p>
+        <form asp-action="Cecos" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <div class="form-row">
+                <input type="file" name="archivo" accept=".xlsx,.xlsm" required aria-label="Excel de relación CECOs almacenes" />
+            </div>
+            <button type="submit" class="btn btn-primary">Cargar relación</button>
+        </form>
+    </div>
 </div>
 
 @if (Model.Historial.Count > 0)
@@ -97,7 +147,14 @@
                         <tr>
                             <td>@u.At.LocalDateTime.ToString("dd/MM/yyyy HH:mm")</td>
                             <td>
-                                @(u.Tipo switch { "md04" => "MD04", "abc" => "Clasificación ABC", _ => "Pedidos" })
+                                @(u.Tipo switch
+                                {
+                                    "md04" => "MD04 almacenaje",
+                                    "md04na" => "MD04 no almacenaje",
+                                    "abc" => "Clasificación ABC",
+                                    "cecos" => "CECOs · Almacenes",
+                                    _ => "Pedidos",
+                                })
                             </td>
                             <td class="wrap">@u.FileName</td>
                             <td>

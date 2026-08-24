@@ -79,7 +79,9 @@ public class OrderImportService : IOrderImportService
                 existente.ProveedorNombre = p.ProveedorNombre;
                 existente.ReferenciaProveedor = p.ReferenciaProveedor;
                 existente.Almacen = p.Almacen;
+                existente.CantidadPedido = p.CantidadPedido;
                 existente.PorEntregarCantidad = p.PorEntregarCantidad;
+                existente.ContratoMarco = p.ContratoMarco;
                 existente.LastUploadAt = now;
                 // NO se tocan: Recibido, Reclamado, Anulado, EnFalta, Comentarios, Incidencia, etc.
                 actualizados++;
@@ -101,7 +103,9 @@ public class OrderImportService : IOrderImportService
                     ProveedorNombre = p.ProveedorNombre,
                     ReferenciaProveedor = p.ReferenciaProveedor,
                     Almacen = p.Almacen,
+                    CantidadPedido = p.CantidadPedido,
                     PorEntregarCantidad = p.PorEntregarCantidad,
+                    ContratoMarco = p.ContratoMarco,
                     LastUploadAt = now,
                 });
                 insertados++;
@@ -145,7 +149,11 @@ public class OrderImportService : IOrderImportService
         return r;
     }
 
-    /// <summary>Crea proveedores que aparecen en el Excel pero aún no existen (sin email; quedan "incompletos").</summary>
+    /// <summary>
+    /// Crea proveedores que aparecen en el Excel pero aún no existen (sin email;
+    /// quedan "incompletos") y marca el acuerdo marco de los que traen contrato
+    /// marco en alguna línea del listado (nunca lo desmarca: eso es manual).
+    /// </summary>
     private async Task EnsureProveedoresAsync(List<ParsedOrder> parsed, CancellationToken ct)
     {
         var codigos = parsed
@@ -155,11 +163,22 @@ public class OrderImportService : IOrderImportService
             .ToList();
         if (codigos.Count == 0) return;
 
+        var conContrato = parsed
+            .Where(p => !string.IsNullOrWhiteSpace(p.ProveedorCodigo)
+                        && !string.IsNullOrWhiteSpace(p.ContratoMarco))
+            .Select(p => p.ProveedorCodigo!)
+            .ToHashSet();
+
         var existentes = await _db.Proveedores
             .Where(pr => codigos.Contains(pr.Codigo))
-            .Select(pr => pr.Codigo)
             .ToListAsync(ct);
-        var existentesSet = existentes.ToHashSet();
+        var existentesSet = existentes.Select(pr => pr.Codigo).ToHashSet();
+
+        foreach (var pr in existentes)
+        {
+            if (!pr.AcuerdoMarco && conContrato.Contains(pr.Codigo))
+                pr.AcuerdoMarco = true;
+        }
 
         foreach (var p in parsed)
         {
@@ -171,6 +190,7 @@ public class OrderImportService : IOrderImportService
                 Codigo = p.ProveedorCodigo!,
                 Nombre = p.ProveedorNombre ?? p.ProveedorCodigo!,
                 Activo = true,
+                AcuerdoMarco = conContrato.Contains(p.ProveedorCodigo),
             });
             existentesSet.Add(p.ProveedorCodigo);
         }

@@ -2,13 +2,14 @@
 @{
     ViewData["Title"] = "Semáforo MD04";
     string TabClass(string f) => Model.Filtro == f ? "active" : "";
+    string AmbitoClass(string a) => Model.Ambito == a ? "active" : "";
 }
 
 <div class="page-heading">
     <div class="page-heading-main">
         <div class="eyebrow">Cobertura de stock</div>
         <h1 class="page-title">Semáforo NEXUS MD04</h1>
-        <p class="page-sub">Detecta primero los materiales bajo mínimo que todavía no tienen un pedido lanzado.</p>
+        <p class="page-sub">Detecta primero los materiales en rojo sin pedido lanzado y las excepciones ME3 (pedido fuera de plazo) y ME6 (bajo stock de seguridad).</p>
     </div>
     <div class="page-heading-actions">
         @if (Model.CargadoAt is not null)
@@ -19,11 +20,16 @@
     </div>
 </div>
 
+<nav class="pills" aria-label="Ámbito del listado MD04">
+    <a class="@AmbitoClass("almacenaje")" asp-action="Index" asp-route-ambito="almacenaje">Almacenaje <span class="count">@Model.TotalAlmacenaje</span></a>
+    <a class="@AmbitoClass("noalmacenaje")" asp-action="Index" asp-route-ambito="noalmacenaje">No almacenaje <span class="count">@Model.TotalNoAlmacenaje</span></a>
+</nav>
+
 @if (Model.CargadoAt is null)
 {
     <div class="card">
         <div class="empty-state">
-            Aún no se ha cargado el listado MD04 de NEXUS.
+            Aún no se ha cargado el listado MD04 de @(Model.Ambito == "noalmacenaje" ? "no almacenaje" : "almacenaje").
             <br />
             <a asp-controller="Carga" asp-action="Index">Cargar el Excel MD04</a>
         </div>
@@ -32,32 +38,34 @@
 else
 {
     <div class="stats">
-        <a class="stat is-danger" asp-action="Index" asp-route-filtro="sinpedido">
+        <a class="stat is-danger" asp-action="Index" asp-route-ambito="@Model.Ambito" asp-route-filtro="sinpedido">
             <div class="label">Rojos sin pedido</div>
             <div class="value">@Model.RojosSinPedido</div>
             <div class="meta">acción inmediata</div>
         </a>
-        <a class="stat is-danger" asp-action="Index" asp-route-filtro="rojos">
+        <a class="stat is-danger" asp-action="Index" asp-route-ambito="@Model.Ambito" asp-route-filtro="rojos">
             <div class="label">Rojos en total</div>
             <div class="value">@Model.Rojos</div>
-            <div class="meta">stock crítico</div>
+            <div class="meta">status en rojo</div>
         </a>
-        <a class="stat is-warning" asp-action="Index" asp-route-filtro="todos">
-            <div class="label">Amarillos</div>
-            <div class="value">@Model.Amarillos</div>
-            <div class="meta">vigilar evolución</div>
+        <a class="stat is-warning" asp-action="Index" asp-route-ambito="@Model.Ambito" asp-route-filtro="fueraplazo">
+            <div class="label">Pedido fuera de plazo</div>
+            <div class="value">@Model.FueraPlazo</div>
+            <div class="meta">excepción ME3</div>
         </a>
-        <a class="stat is-success" asp-action="Index" asp-route-filtro="todos">
-            <div class="label">Verdes</div>
-            <div class="value">@Model.Verdes</div>
-            <div class="meta">cobertura suficiente</div>
+        <a class="stat is-warning" asp-action="Index" asp-route-ambito="@Model.Ambito" asp-route-filtro="bajoseguridad">
+            <div class="label">Bajo stock de seguridad</div>
+            <div class="value">@Model.BajoSeguridad</div>
+            <div class="meta">excepción ME6</div>
         </a>
     </div>
 
     <nav class="pills" aria-label="Filtro del semáforo">
-        <a class="@TabClass("sinpedido") pill-danger" asp-action="Index" asp-route-filtro="sinpedido">Rojos sin pedido <span class="count">@Model.RojosSinPedido</span></a>
-        <a class="@TabClass("rojos")" asp-action="Index" asp-route-filtro="rojos">Todos los rojos <span class="count">@Model.Rojos</span></a>
-        <a class="@TabClass("todos")" asp-action="Index" asp-route-filtro="todos">Todo el listado <span class="count">@(Model.Rojos + Model.Amarillos + Model.Verdes)</span></a>
+        <a class="@TabClass("sinpedido") pill-danger" asp-action="Index" asp-route-ambito="@Model.Ambito" asp-route-filtro="sinpedido">Rojos sin pedido <span class="count">@Model.RojosSinPedido</span></a>
+        <a class="@TabClass("rojos")" asp-action="Index" asp-route-ambito="@Model.Ambito" asp-route-filtro="rojos">Todos los rojos <span class="count">@Model.Rojos</span></a>
+        <a class="@TabClass("fueraplazo")" asp-action="Index" asp-route-ambito="@Model.Ambito" asp-route-filtro="fueraplazo">Fuera de plazo (ME3) <span class="count">@Model.FueraPlazo</span></a>
+        <a class="@TabClass("bajoseguridad")" asp-action="Index" asp-route-ambito="@Model.Ambito" asp-route-filtro="bajoseguridad">Bajo seguridad (ME6) <span class="count">@Model.BajoSeguridad</span></a>
+        <a class="@TabClass("todos")" asp-action="Index" asp-route-ambito="@Model.Ambito" asp-route-filtro="todos">Todo el listado <span class="count">@(Model.Rojos + Model.Amarillos + Model.Verdes)</span></a>
     </nav>
 
     <div class="card">
@@ -76,12 +84,16 @@ else
                     <thead>
                         <tr>
                             <th></th>
+                            <th>Status</th>
                             <th>Material</th>
-                            <th>Descripción</th>
-                            <th>Almacén</th>
-                            <th>Stock</th>
-                            <th>Punto pedido</th>
-                            <th>Consumo medio</th>
+                            <th>Denominación</th>
+                            <th>Área pl. nec.</th>
+                            <th>Excepciones</th>
+                            @if (Model.MuestraStock)
+                            {
+                                <th>Stock</th>
+                                <th>Punto pedido</th>
+                            }
                             <th>Pedido lanzado</th>
                         </tr>
                     </thead>
@@ -91,12 +103,29 @@ else
                             var i = r.Item;
                             <tr class="@(i.Semaforo == "rojo" && !r.TienePedido ? "row-llamar" : "")">
                                 <td><span class="dot dot-@i.Semaforo" title="@i.Semaforo"></span></td>
+                                <td><span class="muted">@(i.StatusNexus ?? i.Semaforo)</span></td>
                                 <td>@i.Material</td>
                                 <td class="wrap">@i.TextoBreve</td>
-                                <td>@i.Almacen</td>
-                                <td>@(i.Stock?.ToString("0.##") ?? "—")</td>
-                                <td>@(i.PuntoPedido?.ToString("0.##") ?? "—")</td>
-                                <td>@(i.ConsumoMedio?.ToString("0.##") ?? "—")</td>
+                                <td>@(i.AreaPlanificacion ?? i.Almacen)</td>
+                                <td>
+                                    @if (i.PedidosFueraPlazo > 0)
+                                    {
+                                        <span class="tag tag-missing" title="ME3: pedido fuera de plazo de entrega">FUERA DE PLAZO@(i.PedidosFueraPlazo > 1 ? $" ×{i.PedidosFueraPlazo}" : "")</span>
+                                    }
+                                    @if (i.BajoStockSeguridad > 0)
+                                    {
+                                        <span class="tag tag-claimed" title="ME6: por debajo de stock de seguridad">BAJO SEGURIDAD@(i.BajoStockSeguridad > 1 ? $" ×{i.BajoStockSeguridad}" : "")</span>
+                                    }
+                                    @if (!(i.PedidosFueraPlazo > 0) && !(i.BajoStockSeguridad > 0))
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                </td>
+                                @if (Model.MuestraStock)
+                                {
+                                    <td>@(i.Stock?.ToString("0.##") ?? "—")</td>
+                                    <td>@(i.PuntoPedido?.ToString("0.##") ?? "—")</td>
+                                }
                                 <td>
                                     @if (r.TienePedido)
                                     {

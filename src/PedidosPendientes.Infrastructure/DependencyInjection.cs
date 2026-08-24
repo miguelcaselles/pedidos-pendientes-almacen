@@ -33,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IOrderImportService, OrderImportService>();
         services.AddScoped<IMd04ImportService, Md04ImportService>();
         services.AddScoped<IClasificacionImportService, ClasificacionImportService>();
+        services.AddScoped<ICecosImportService, CecosImportService>();
         services.AddScoped<ISettingsService, SettingsService>();
 
         return services;

@@ -50,8 +50,17 @@ public class Order
     /// <summary>Almacén destino. Excel col. 11.</summary>
     public string? Almacen { get; set; }
 
+    /// <summary>Cantidad total pedida ("Cantidad de pedido" del ME2N).</summary>
+    public decimal? CantidadPedido { get; set; }
+
     /// <summary>Cantidad pendiente de entregar. Excel col. 12.</summary>
     public decimal? PorEntregarCantidad { get; set; }
+
+    /// <summary>
+    /// Nº de contrato marco de la línea ("Contrato marco" del ME2N). Si viene,
+    /// el pedido está sujeto a acuerdo marco (base de la auditoría de proveedores).
+    /// </summary>
+    public string? ContratoMarco { get; set; }
 
     // --- Estado de gestión (NO viene del Excel; se conserva entre cargas) ---
 

@@ -23,7 +23,9 @@ public class DashboardViewModel
     // Estado de cargas
     public UploadLog? UltimaPedidos { get; set; }
     public UploadLog? UltimaMd04 { get; set; }
+    public UploadLog? UltimaMd04Na { get; set; }
     public UploadLog? UltimaAbc { get; set; }
+    public UploadLog? UltimaCecos { get; set; }
     public bool CargaPedidosObsoleta { get; set; }
     public int DiasAvisoCarga { get; set; }
 

@@ -16,6 +16,9 @@ public class AppDbContext : DbContext
     public DbSet<StockMd04Item> StockMd04 => Set<StockMd04Item>();
     public DbSet<MaterialClasificacion> MaterialClasificaciones => Set<MaterialClasificacion>();
     public DbSet<CriticidadUbicacion> CriticidadUbicaciones => Set<CriticidadUbicacion>();
+    public DbSet<AlmacenCeco> AlmacenCecos => Set<AlmacenCeco>();
+    public DbSet<ProductoFicha> ProductoFichas => Set<ProductoFicha>();
+    public DbSet<ProductoAdjunto> ProductoAdjuntos => Set<ProductoAdjunto>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -37,7 +40,9 @@ public class AppDbContext : DbContext
             e.Property(x => x.ProveedorNombre).HasMaxLength(200);
             e.Property(x => x.ReferenciaProveedor).HasMaxLength(40);
             e.Property(x => x.Almacen).HasMaxLength(20);
+            e.Property(x => x.CantidadPedido).HasColumnType("decimal(12,2)");
             e.Property(x => x.PorEntregarCantidad).HasColumnType("decimal(12,2)");
+            e.Property(x => x.ContratoMarco).HasMaxLength(20);
             e.Property(x => x.CantidadRecibida).HasColumnType("decimal(12,2)");
 
             // Clave única de negocio: el almacén no tiene "Posición".
@@ -117,15 +122,18 @@ public class AppDbContext : DbContext
         {
             e.ToTable("StockMd04");
             e.HasKey(x => x.Id);
+            e.Property(x => x.Ambito).HasMaxLength(15).IsRequired().HasDefaultValue("almacenaje");
             e.Property(x => x.Material).HasMaxLength(30).IsRequired();
             e.Property(x => x.TextoBreve).HasMaxLength(255);
             e.Property(x => x.Almacen).HasMaxLength(20);
             e.Property(x => x.Semaforo).HasMaxLength(10).IsRequired();
+            e.Property(x => x.StatusNexus).HasMaxLength(10);
+            e.Property(x => x.AreaPlanificacion).HasMaxLength(20);
             e.Property(x => x.Stock).HasColumnType("decimal(12,2)");
             e.Property(x => x.PuntoPedido).HasColumnType("decimal(12,2)");
             e.Property(x => x.ConsumoMedio).HasColumnType("decimal(12,2)");
             e.HasIndex(x => x.Material).HasDatabaseName("IX_StockMd04_Material");
-            e.HasIndex(x => x.Semaforo).HasDatabaseName("IX_StockMd04_Semaforo");
+            e.HasIndex(x => new { x.Ambito, x.Semaforo }).HasDatabaseName("IX_StockMd04_Ambito_Semaforo");
         });
 
         b.Entity<MaterialClasificacion>(e =>
@@ -146,6 +154,46 @@ public class AppDbContext : DbContext
             e.Property(x => x.Descripcion).HasMaxLength(200);
             e.Property(x => x.Nivel).HasMaxLength(10).IsRequired();
             e.HasIndex(x => new { x.Tipo, x.Codigo }).IsUnique().HasDatabaseName("UQ_CriticidadUbicaciones_Tipo_Codigo");
+        });
+
+        b.Entity<AlmacenCeco>(e =>
+        {
+            e.ToTable("AlmacenCecos");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Centro).HasMaxLength(10).IsRequired();
+            e.Property(x => x.Almacen).HasMaxLength(20).IsRequired();
+            e.Property(x => x.DenominacionAlmacen).HasMaxLength(100);
+            e.Property(x => x.CentroCoste).HasMaxLength(20);
+            e.Property(x => x.DenominacionCentroCoste).HasMaxLength(100);
+            e.Property(x => x.Descripcion).HasMaxLength(200);
+            e.HasIndex(x => new { x.Centro, x.Almacen }).IsUnique().HasDatabaseName("UQ_AlmacenCecos_Centro_Almacen");
+            e.HasIndex(x => x.CentroCoste).HasDatabaseName("IX_AlmacenCecos_CentroCoste");
+        });
+
+        b.Entity<ProductoFicha>(e =>
+        {
+            e.ToTable("ProductoFichas");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Material).HasMaxLength(30).IsRequired();
+            e.Property(x => x.Denominacion).HasMaxLength(255);
+            e.Property(x => x.DescripcionAmpliada).HasMaxLength(2000);
+            e.Property(x => x.MaterialesAlternativos).HasMaxLength(1000);
+            e.Property(x => x.PresupuestoUnitario).HasColumnType("decimal(12,4)");
+            e.Property(x => x.Notas).HasMaxLength(2000);
+            e.HasIndex(x => x.Material).IsUnique().HasDatabaseName("UQ_ProductoFichas_Material");
+        });
+
+        b.Entity<ProductoAdjunto>(e =>
+        {
+            e.ToTable("ProductoAdjuntos");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.FileName).HasMaxLength(255).IsRequired();
+            e.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+            e.HasOne(x => x.ProductoFicha)
+             .WithMany(f => f.Adjuntos)
+             .HasForeignKey(x => x.ProductoFichaId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.ProductoFichaId).HasDatabaseName("IX_ProductoAdjuntos_Ficha");
         });
     }
 
@@ -188,6 +236,13 @@ public class AppDbContext : DbContext
                     break;
                 case CriticidadUbicacion cu:
                     if (entry.State == EntityState.Added) cu.CreatedAt = now;
+                    break;
+                case ProductoFicha pf:
+                    if (entry.State == EntityState.Added) pf.CreatedAt = now;
+                    pf.UpdatedAt = now;
+                    break;
+                case ProductoAdjunto pa:
+                    if (entry.State == EntityState.Added) pa.SubidoAt = now;
                     break;
             }
         }

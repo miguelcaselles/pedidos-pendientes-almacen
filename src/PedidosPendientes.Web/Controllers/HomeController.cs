@@ -64,7 +64,9 @@ public class HomeController : Controller
             .ToListAsync(ct);
         vm.UltimaPedidos = ultimas.FirstOrDefault(u => u.Tipo == "pedidos");
         vm.UltimaMd04 = ultimas.FirstOrDefault(u => u.Tipo == "md04");
+        vm.UltimaMd04Na = ultimas.FirstOrDefault(u => u.Tipo == "md04na");
         vm.UltimaAbc = ultimas.FirstOrDefault(u => u.Tipo == "abc");
+        vm.UltimaCecos = ultimas.FirstOrDefault(u => u.Tipo == "cecos");
         vm.CargaPedidosObsoleta = vm.UltimaPedidos is null
             || vm.UltimaPedidos.At < DateTimeOffset.UtcNow.AddDays(-p.DiasAvisoCargaObsoleta);
 

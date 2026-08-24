@@ -98,7 +98,11 @@
                             <td class="wrap">@o.TextoBreve</td>
                             <td class="wrap">
                                 @o.ProveedorNombre
-                                @if (r.AcuerdoMarco)
+                                @if (o.ContratoMarco is not null)
+                                {
+                                    <span class="tag tag-am" title="Línea con contrato marco @o.ContratoMarco">AM @o.ContratoMarco</span>
+                                }
+                                else if (r.AcuerdoMarco)
                                 {
                                     <span class="tag tag-am" title="Proveedor con acuerdo marco">AM</span>
                                 }
@@ -122,7 +126,13 @@
                                     @r.DiasHabiles
                                 </span>
                             </td>
-                            <td>@(o.PorEntregarCantidad?.ToString("0.##") ?? "—")</td>
+                            <td>
+                                @(o.PorEntregarCantidad?.ToString("0.##") ?? "—")
+                                @if (o.CantidadPedido is not null && o.CantidadPedido != o.PorEntregarCantidad)
+                                {
+                                    <span class="muted" title="Cantidad total del pedido">/ @o.CantidadPedido?.ToString("0.##")</span>
+                                }
+                            </td>
                             <td>
                                 @if (o.Anulado) { <span class="tag tag-pending">Anulado</span> }
                                 else if (o.Recibido) { <span class="tag tag-received">Recibido</span> }

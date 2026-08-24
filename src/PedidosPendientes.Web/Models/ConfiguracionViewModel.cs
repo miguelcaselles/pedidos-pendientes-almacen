@@ -9,6 +9,9 @@ public class ConfiguracionViewModel
 
     public IReadOnlyList<CriticidadUbicacion> Criticidades { get; set; } = [];
 
+    /// <summary>Relación CECOs - Almacenes cargada (para dar nombre y marcar criticidad).</summary>
+    public IReadOnlyList<AlmacenCeco> AlmacenCecos { get; set; } = [];
+
     public int MaterialesClasificados { get; set; }
     public int ClaseA { get; set; }
     public int ClaseB { get; set; }

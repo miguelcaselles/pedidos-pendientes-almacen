@@ -28,7 +28,9 @@ public partial class ExcelOrderParser : IExcelOrderParser
         ["proveedor"] = ProveedorRegex(),
         ["referenciaProveedor"] = ReferenciaRegex(),
         ["almacen"] = AlmacenRegex(),
+        ["cantidadPedido"] = CantidadPedidoRegex(),
         ["porEntregarCantidad"] = PorEntregarRegex(),
+        ["contratoMarco"] = ContratoMarcoRegex(),
     };
 
     // Mapa posicional de respaldo (orden real del Excel de almacén).
@@ -82,7 +84,9 @@ public partial class ExcelOrderParser : IExcelOrderParser
                 ProveedorNombre = provNombre,
                 ReferenciaProveedor = ExcelSax.NullIfEmpty(ExcelSax.Get(cells, Idx(map, "referenciaProveedor"))),
                 Almacen = ExcelSax.NullIfEmpty(ExcelSax.Get(cells, Idx(map, "almacen"))),
+                CantidadPedido = ExcelSax.ParseDecimal(ExcelSax.Get(cells, Idx(map, "cantidadPedido"))),
                 PorEntregarCantidad = ExcelSax.ParseDecimal(ExcelSax.Get(cells, Idx(map, "porEntregarCantidad"))),
+                ContratoMarco = ExcelSax.NullIfEmpty(ExcelSax.Get(cells, Idx(map, "contratoMarco"))),
             });
         }
 
@@ -190,8 +194,15 @@ public partial class ExcelOrderParser : IExcelOrderParser
     [GeneratedRegex(@"almac[eé]n", RegexOptions.IgnoreCase)]
     private static partial Regex AlmacenRegex();
 
+    // "Cantidad de pedido" (total pedido), distinta de "Por entregar (cantidad)".
+    [GeneratedRegex(@"cantidad\s*(de\s*)?pedido", RegexOptions.IgnoreCase)]
+    private static partial Regex CantidadPedidoRegex();
+
     [GeneratedRegex(@"por\s*entregar", RegexOptions.IgnoreCase)]
     private static partial Regex PorEntregarRegex();
+
+    [GeneratedRegex(@"contrato\s*marco|acuerdo\s*marco", RegexOptions.IgnoreCase)]
+    private static partial Regex ContratoMarcoRegex();
 
     [GeneratedRegex(@"^(\d+)")]
     private static partial Regex LeadingDigitsRegex();

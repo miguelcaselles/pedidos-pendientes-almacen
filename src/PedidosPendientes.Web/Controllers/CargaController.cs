@@ -14,14 +14,16 @@ public class CargaController : Controller
     private readonly IOrderImportService _pedidos;
     private readonly IMd04ImportService _md04;
     private readonly IClasificacionImportService _abc;
+    private readonly ICecosImportService _cecos;
 
     public CargaController(AppDbContext db, IOrderImportService pedidos,
-        IMd04ImportService md04, IClasificacionImportService abc)
+        IMd04ImportService md04, IClasificacionImportService abc, ICecosImportService cecos)
     {
         _db = db;
         _pedidos = pedidos;
         _md04 = md04;
         _abc = abc;
+        _cecos = cecos;
     }
 
     [HttpGet]
@@ -31,7 +33,9 @@ public class CargaController : Controller
         {
             UltimaPedidos = await UltimaCargaAsync("pedidos", ct),
             UltimaMd04 = await UltimaCargaAsync("md04", ct),
+            UltimaMd04Na = await UltimaCargaAsync("md04na", ct),
             UltimaAbc = await UltimaCargaAsync("abc", ct),
+            UltimaCecos = await UltimaCargaAsync("cecos", ct),
             Historial = await _db.UploadLogs.AsNoTracking()
                 .OrderByDescending(u => u.At).Take(15).ToListAsync(ct),
         };
@@ -47,14 +51,20 @@ public class CargaController : Controller
     [HttpPost]
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(20_000_000)]
-    public async Task<IActionResult> Md04(IFormFile? archivo, CancellationToken ct)
-        => await ImportarAsync(archivo, (s, n) => _md04.ImportAsync(s, n, ct));
+    public async Task<IActionResult> Md04(IFormFile? archivo, string? ambito, CancellationToken ct)
+        => await ImportarAsync(archivo, (s, n) => _md04.ImportAsync(s, n, ambito ?? "almacenaje", ct));
 
     [HttpPost]
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(20_000_000)]
     public async Task<IActionResult> Clasificacion(IFormFile? archivo, CancellationToken ct)
         => await ImportarAsync(archivo, (s, n) => _abc.ImportAsync(s, n, ct));
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(20_000_000)]
+    public async Task<IActionResult> Cecos(IFormFile? archivo, CancellationToken ct)
+        => await ImportarAsync(archivo, (s, n) => _cecos.ImportAsync(s, n, ct));
 
     private async Task<IActionResult> ImportarAsync(IFormFile? archivo,
         Func<Stream, string, Task<UploadResult>> import)
