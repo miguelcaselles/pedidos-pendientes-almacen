@@ -1,0 +1,94 @@
+@model CatalogoIndexViewModel
+@{
+    ViewData["Title"] = "Catálogo";
+}
+
+<div class="page-heading">
+    <div class="page-heading-main">
+        <div class="eyebrow">Referencia de materiales</div>
+        <h1 class="page-title">Catálogo de producto</h1>
+        <p class="page-sub">Busca por código o descripción y abre la ficha del artículo: datos, materiales alternativos, presupuesto y ficha técnica.</p>
+    </div>
+    <div class="page-heading-actions">
+        <span class="freshness">@Model.FichasCreadas ficha@(Model.FichasCreadas == 1 ? "" : "s") creada@(Model.FichasCreadas == 1 ? "" : "s")</span>
+    </div>
+</div>
+
+<div class="card">
+    <form method="get" class="flex flex-wrap mobile-stack" style="margin-bottom:16px" role="search">
+        <label class="sr-only" for="cat-search">Buscar en el catálogo</label>
+        <input id="cat-search" type="search" name="search" value="@Model.Search" placeholder="Código NEXUS o descripción del artículo…" style="max-width:440px" autofocus />
+        <button type="submit" class="btn btn-primary">Buscar</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Search))
+        {
+            <a class="btn" asp-action="Index">Limpiar</a>
+        }
+        <span class="spacer"></span>
+        <span class="muted" aria-live="polite">@Model.Rows.Count resultado@(Model.Rows.Count == 1 ? "" : "s")</span>
+    </form>
+
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="empty-state">
+            @(string.IsNullOrWhiteSpace(Model.Search)
+                ? "El catálogo se alimenta de los materiales de pedidos, MD04 y clasificación. Carga los Excel o busca un código para crear su ficha."
+                : $"Sin resultados para «{Model.Search}». Puedes crear la ficha directamente:")
+            @if (!string.IsNullOrWhiteSpace(Model.Search))
+            {
+                <br />
+                <a class="btn btn-primary" style="margin-top:10px" asp-action="Ficha" asp-route-material="@Model.Search.Trim()">Crear ficha para «@Model.Search.Trim()»</a>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th>Material</th>
+                        <th>Denominación</th>
+                        <th>Proveedor habitual</th>
+                        <th>Presupuesto ud.</th>
+                        <th>Ficha</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        <tr>
+                            <td>
+                                @r.Material
+                                @if (r.Clase is not null)
+                                {
+                                    <span class="clase clase-@r.Clase.ToLowerInvariant()">@r.Clase</span>
+                                }
+                            </td>
+                            <td class="wrap">@r.Denominacion</td>
+                            <td class="wrap">@r.ProveedorHabitual</td>
+                            <td>@(r.PresupuestoUnitario?.ToString("0.####") is string p ? $"{p} €" : "—")</td>
+                            <td>
+                                @if (r.TieneFicha)
+                                {
+                                    <span class="tag tag-received">Ficha@(r.NumAdjuntos > 0 ? $" · {r.NumAdjuntos} doc." : "")</span>
+                                }
+                                else
+                                {
+                                    <span class="muted">—</span>
+                                }
+                            </td>
+                            <td>
+                                <a class="btn btn-sm" asp-action="Ficha" asp-route-material="@r.Material">@(r.TieneFicha ? "Abrir ficha" : "Crear ficha")</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.Truncado)
+        {
+            <p class="hint" style="margin-top:12px">Mostrando los primeros 200 resultados. Usa el buscador para acotar.</p>
+        }
+    }
+</div>

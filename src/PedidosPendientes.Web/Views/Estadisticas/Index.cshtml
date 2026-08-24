@@ -1,0 +1,117 @@
+@model EstadisticasViewModel
+@{
+    ViewData["Title"] = "Estadísticas";
+    string OrdenClass(string o) => Model.Orden == o ? "active" : "";
+}
+
+<div class="page-heading">
+    <div class="page-heading-main">
+        <div class="eyebrow">Análisis de consumo</div>
+        <h1 class="page-title">Periodicidad de pedido por artículo</h1>
+        <p class="page-sub">Con qué frecuencia se pide cada material, cuándo fue el último pedido y cuándo tocaría el siguiente.</p>
+    </div>
+</div>
+
+<nav class="pills" aria-label="Ordenación">
+    <a class="@OrdenClass("pedidos")" asp-action="Index" asp-route-orden="pedidos" asp-route-search="@Model.Search">Más pedidos</a>
+    <a class="@OrdenClass("frecuencia")" asp-action="Index" asp-route-orden="frecuencia" asp-route-search="@Model.Search">Mayor frecuencia</a>
+    <a class="@OrdenClass("reciente")" asp-action="Index" asp-route-orden="reciente" asp-route-search="@Model.Search">Último pedido</a>
+</nav>
+
+<div class="card">
+    <form method="get" class="flex flex-wrap mobile-stack" style="margin-bottom:16px" role="search">
+        <input type="hidden" name="orden" value="@Model.Orden" />
+        <label class="sr-only" for="stats-search">Buscar material</label>
+        <input id="stats-search" type="search" name="search" value="@Model.Search" placeholder="Código, descripción o proveedor…" style="max-width:440px" />
+        <button type="submit" class="btn">Buscar</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Search))
+        {
+            <a class="btn" asp-action="Index" asp-route-orden="@Model.Orden">Limpiar</a>
+        }
+        <span class="spacer"></span>
+        <span class="muted" aria-live="polite">@Model.TotalMateriales material@(Model.TotalMateriales == 1 ? "" : "es")</span>
+    </form>
+
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="empty-state">
+            Sin datos todavía. La periodicidad se calcula sobre el histórico de pedidos cargados.
+        </div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th>Material</th>
+                        <th>Descripción</th>
+                        <th>Proveedor habitual</th>
+                        <th title="Documentos de compra distintos">Pedidos</th>
+                        <th title="Días naturales medios entre pedidos">Cada</th>
+                        <th>Último pedido</th>
+                        <th title="Último pedido + intervalo medio">Próximo estimado</th>
+                        <th>Cant. media</th>
+                        <th>Pendientes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        <tr class="@(r.ProximoVencido ? "row-llamar" : "")">
+                            <td>
+                                <a asp-controller="Catalogo" asp-action="Ficha" asp-route-material="@r.Material" title="Ver ficha de producto">@r.Material</a>
+                                @if (r.Clase is not null)
+                                {
+                                    <span class="clase clase-@r.Clase.ToLowerInvariant()">@r.Clase</span>
+                                }
+                            </td>
+                            <td class="wrap">@r.Descripcion</td>
+                            <td class="wrap">@r.ProveedorHabitual</td>
+                            <td>@r.NumPedidos</td>
+                            <td>@(r.IntervaloMedioDias is double d ? $"{d:0} días" : "—")</td>
+                            <td>@r.UltimoPedido.ToString("dd/MM/yyyy") <span class="muted">(hace @r.DiasDesdeUltimo d)</span></td>
+                            <td>
+                                @if (r.ProximoEstimado is DateOnly prox)
+                                {
+                                    <span class="@(r.ProximoVencido ? "text-danger" : "")">@prox.ToString("dd/MM/yyyy")</span>
+                                    @if (r.ProximoVencido)
+                                    {
+                                        <span class="tag tag-reclamar" title="Según su periodicidad tocaría pedir y no hay líneas pendientes">TOCA PEDIR</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="muted">—</span>
+                                }
+                            </td>
+                            <td>@(r.CantidadMedia?.ToString("0.#") ?? "—")</td>
+                            <td>
+                                @if (r.PendientesActuales > 0)
+                                {
+                                    <a asp-controller="Orders" asp-action="Index" asp-route-search="@r.Material">@r.PendientesActuales</a>
+                                }
+                                else
+                                {
+                                    <span class="muted">0</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.Truncado)
+        {
+            <p class="hint" style="margin-top:12px">Mostrando los primeros 300 materiales. Usa el buscador para acotar.</p>
+        }
+        <details class="legend">
+            <summary>Cómo se calcula</summary>
+            <ul>
+                <li><strong>Pedidos</strong>: documentos de compra distintos del material en todo el histórico cargado (líneas anuladas excluidas).</li>
+                <li><strong>Cada X días</strong>: media de días naturales entre pedidos consecutivos (necesita al menos 2 pedidos).</li>
+                <li><strong>Próximo estimado</strong>: fecha del último pedido más el intervalo medio. <span class="tag tag-reclamar">TOCA PEDIR</span> marca los que ya lo superan sin líneas pendientes.</li>
+            </ul>
+        </details>
+    }
+</div>

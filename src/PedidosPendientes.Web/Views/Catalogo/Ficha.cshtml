@@ -1,0 +1,126 @@
+@model CatalogoFichaViewModel
+@{
+    var f = Model.Ficha;
+    ViewData["Title"] = $"Ficha {f.Material}";
+}
+
+<div class="page-heading">
+    <div class="page-heading-main">
+        <div class="eyebrow">Catálogo de producto</div>
+        <h1 class="page-title">
+            @f.Material
+            @if (Model.Clase is not null)
+            {
+                <span class="clase clase-@Model.Clase.ToLowerInvariant()" title="Clase de urgencia de reclamación">@Model.Clase</span>
+            }
+        </h1>
+        <p class="page-sub">@(f.Denominacion ?? Model.DenominacionSugerida ?? "Ficha de producto")</p>
+    </div>
+    <div class="page-heading-actions">
+        <a class="btn" asp-action="Index">← Volver al catálogo</a>
+    </div>
+</div>
+
+<div class="stats">
+    <div class="stat">
+        <div class="label">Pedidos históricos</div>
+        <div class="value">@Model.PedidosHistoricos</div>
+        <div class="meta">documentos de compra</div>
+    </div>
+    <a class="stat @(Model.PendientesActuales > 0 ? "is-warning" : "")" asp-controller="Orders" asp-action="Index" asp-route-search="@f.Material">
+        <div class="label">Pendientes ahora</div>
+        <div class="value">@Model.PendientesActuales</div>
+        <div class="meta">líneas activas</div>
+    </a>
+    <div class="stat">
+        <div class="label">Documentos</div>
+        <div class="value">@f.Adjuntos.Count</div>
+        <div class="meta">ficha técnica y otros</div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h2>Datos de la ficha</h2>
+        @if (Model.EsNueva)
+        {
+            <p class="hint">Este material todavía no tiene ficha: al guardar se creará.</p>
+        }
+        <form method="post" asp-action="Guardar">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="material" value="@f.Material" />
+            <div class="form-row">
+                <label for="f-den">Denominación</label>
+                <input id="f-den" type="text" name="denominacion" maxlength="255"
+                       value="@f.Denominacion" placeholder="@(Model.DenominacionSugerida ?? "Denominación del artículo")" />
+            </div>
+            <div class="form-row">
+                <label for="f-desc">Descripción ampliada</label>
+                <textarea id="f-desc" name="descripcionAmpliada" rows="4" maxlength="2000"
+                          placeholder="Características, presentación, unidad de medida…">@f.DescripcionAmpliada</textarea>
+            </div>
+            <div class="form-row">
+                <label for="f-alt">Materiales alternativos</label>
+                <textarea id="f-alt" name="materialesAlternativos" rows="2" maxlength="1000"
+                          placeholder="Códigos o descripciones de sustitutos válidos (p. ej. en rotura de stock)">@f.MaterialesAlternativos</textarea>
+            </div>
+            <div class="form-row">
+                <label for="f-pres">Presupuesto unitario (€)</label>
+                <input id="f-pres" type="number" name="presupuestoUnitario" step="0.0001" min="0"
+                       value="@(f.PresupuestoUnitario?.ToString(System.Globalization.CultureInfo.InvariantCulture))" style="max-width:180px" />
+            </div>
+            <div class="form-row">
+                <label for="f-notas">Notas</label>
+                <textarea id="f-notas" name="notas" rows="2" maxlength="2000"
+                          placeholder="Proveedor habitual@(Model.ProveedorHabitual is not null ? $" ({Model.ProveedorHabitual})" : ""), condiciones, observaciones…">@f.Notas</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar ficha</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Ficha técnica y documentos</h2>
+        <p class="hint">
+            Adjunta la ficha técnica del material, certificados o presupuestos.
+            Formatos: PDF, Word, Excel o imagen. Máximo 10 MB por archivo.
+        </p>
+        <form method="post" asp-action="SubirAdjunto" enctype="multipart/form-data" class="flex flex-wrap" style="margin-bottom:16px">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="material" value="@f.Material" />
+            <input type="file" name="archivo" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" required aria-label="Documento a adjuntar" />
+            <button type="submit" class="btn btn-primary">Subir documento</button>
+        </form>
+
+        @if (f.Adjuntos.Count == 0)
+        {
+            <div class="empty-state">Sin documentos adjuntos todavía.</div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr><th>Documento</th><th>Tamaño</th><th>Subido</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in f.Adjuntos.OrderByDescending(x => x.SubidoAt))
+                        {
+                            <tr>
+                                <td class="wrap"><a asp-action="Adjunto" asp-route-id="@a.Id">@a.FileName</a></td>
+                                <td>@((a.Size / 1024.0) is double kb && kb >= 1024 ? $"{kb / 1024:0.#} MB" : $"{a.Size / 1024.0:0} KB")</td>
+                                <td>@a.SubidoAt.LocalDateTime.ToString("dd/MM/yyyy")</td>
+                                <td>
+                                    <form method="post" asp-action="EliminarAdjunto" asp-route-id="@a.Id" asp-route-material="@f.Material"
+                                          data-confirm="¿Eliminar el documento @a.FileName?">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="icon-btn is-danger" title="Eliminar documento">×</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
