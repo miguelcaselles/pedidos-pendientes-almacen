@@ -69,43 +69,56 @@ publica en IIS, se configura `ConnectionStrings__Default` y se establece
      --startup-project src/PedidosPendientes.Web
    ```
 
+## Despliegue corporativo
+
+Guía completa para el equipo de desarrollo del hospital (IIS, SQL Server,
+correo institucional, Active Directory, formatos de los ficheros y checklist
+de puesta en marcha en pruebas): **[DESPLIEGUE-HOSPITAL.md](DESPLIEGUE-HOSPITAL.md)**.
+
 ## Estado del desarrollo
 
 Implementado:
 
-- Dominio adaptado a almacén (clave única **Documento + Material**; campos nuevos:
-  Expediente administrativo, Tipo de imputación, Almacén).
-- Base de datos SQL Server con EF Core (migraciones `InitialCreate` y `MejorasOperativas`).
+- Dominio adaptado a almacén (clave única **Documento + Material**).
+- Base de datos SQL Server con EF Core (migraciones `InitialCreate`,
+  `MejorasOperativas` y `ListadosRealesYCatalogo`).
 - **Panel de control**: alertas de reclamación, riesgo de retraso (% pendientes fuera
-  de plazo + probabilidad histórica), incidencias por mes, estado de subida de los
-  tres ficheros y resumen del semáforo MD04.
-- **Cargas de Excel** (con registro y estado de subida visible):
-  - Pedidos pendientes de SAP — **no destructiva** (conserva el estado de gestión),
-    detección dinámica de columnas y deduplicación.
-  - **Semáforo MD04 de NEXUS** — instantánea del día; cruza materiales en rojo con
-    los pedidos para destacar los que **no tienen pedido lanzado**.
+  de plazo + probabilidad histórica), incidencias por mes, estado de subida de las
+  cinco fuentes y resumen del semáforo MD04.
+- **Cargas de Excel** validadas con los ficheros reales de Suministros:
+  - **ME2N pendientes de entrega** — no destructiva; incluye cantidad de pedido y
+    **contrato marco por línea** (marca el acuerdo marco del proveedor).
+  - **MD04 de NEXUS en dos ámbitos** (almacenaje / no almacenaje) — formato real:
+    Status `XOO/OXO/OOX`, Área pl.nec. y excepciones **ME3** (pedido fuera de
+    plazo) y **ME6** (bajo stock de seguridad). El color sale del Status, no del stock.
   - **Clasificación A/B/C por código NEXUS** — parametriza la urgencia de reclamación.
-- **Pedidos**: pestañas (pendientes / para reclamar / alertas / reclamados / en falta /
-  recibidos / anulados), acciones por línea (reclamar, recibir, en falta, anular,
-  reactivar), badges de clase A/B/C, criticidad de ubicación y acuerdo marco,
-  ordenación por prioridad (alerta > criticidad > riesgo).
-- **Alertas de seguimiento**: reclamado sin respuesta del proveedor a los N días
-  (configurable) y, pasados N días más, "para llamar por teléfono".
-- **Proveedores**: contacto, **acuerdo marco** con plazo contractual, pendientes fuera
-  de plazo (base para penalizaciones) y notas de penalización.
-- **Configuración**: plazos por clase A/B/C, plazos de respuesta/llamada, plazo de
-  acuerdo marco, aviso de carga obsoleta y **ubicaciones críticas** (almacén /
-  centro de coste, p. ej. UCI) que priorizan sus pedidos.
-- Estética institucional (logo HUF + paleta corporativa, CSS plano, sin dependencias JS).
-- Cabeceras de seguridad.
+  - **Relación CECOs - Almacenes** — denominaciones legibles y base para marcar
+    criticidad (almacén + centro de coste con un clic).
+- **Semáforo MD04**: pestañas por ámbito, filtros por rojos sin pedido lanzado,
+  ME3, ME6, y cruce con los pedidos pendientes.
+- **Pedidos**: pestañas por estado, acciones por línea, clase A/B/C, criticidad,
+  acuerdo marco, ordenación por prioridad (alerta > criticidad > riesgo).
+- **Reclamación por correo (SMTP institucional, MailKit)**: al reclamar se envía
+  el correo al proveedor (agrupa líneas del documento, cita el contrato marco),
+  con registro en `EmailLogs`, modo pruebas y estado visible en Configuración.
+- **Alertas de seguimiento**: reclamado sin respuesta a los N días (configurable)
+  y, pasados N días más, "para llamar por teléfono".
+- **Proveedores**: contacto, acuerdo marco, auditoría global y detallada con
+  export a Excel, base para penalizaciones.
+- **Estadísticas**: periodicidad de pedido por artículo (intervalo medio, próximo
+  pedido estimado, aviso "toca pedir").
+- **Catálogo de producto**: buscador por código/descripción y ficha por material
+  (denominación, alternativos, presupuesto, ficha técnica adjunta).
+- **Autenticación institucional opcional** (`Auth:Mode=Windows`, Negotiate/AD con
+  restricción por grupos).
+- Estética institucional, cabeceras de seguridad, demo efímera para presentaciones.
 
 Pendiente (siguientes fases):
 
-- Reclamación por email (MailKit) + formulario de respuesta del proveedor firmado
-  (las alertas de "sin respuesta" ya leen la tabla `ProviderResponses`).
+- Tareas programadas (BackgroundService) para la reclamación automática diaria.
+- Formulario de respuesta del proveedor con enlace firmado (las alertas de
+  "sin respuesta" ya leen la tabla `ProviderResponses`).
 - Importación del catálogo de proveedores (L025) con emails.
-- Consumos por material/almacén (a falta de definir la fuente de datos; el MD04 ya
-  admite una columna de consumo medio que se muestra en el semáforo).
-- Exportación a Excel de los listados.
-- Autenticación Active Directory / SSO corporativo.
-- Tareas programadas (BackgroundService).
+- Consumos por material/almacén (a falta de definir la fuente de datos).
+- Exportación a Excel de pedidos y semáforo.
+- RFID / OFT con cruce a Selene (fase posterior).
