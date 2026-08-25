@@ -17,5 +17,7 @@ services:
         value: true
       - key: Demo__Password
         sync: false # secreto: se gestiona solo desde el panel de Render (Environment)
+      - key: ConnectionStrings__Default
+        sync: false # PostgreSQL persistente (Neon) para el entorno de revisión; secreto en el panel
       - key: ReverseProxy__TrustForwardedHeaders
         value: true

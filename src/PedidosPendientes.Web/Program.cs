@@ -52,22 +52,30 @@ if (builder.Configuration.GetValue<bool>("ReverseProxy:TrustForwardedHeaders"))
     app.UseForwardedHeaders(forwarded);
 }
 
-// Inicialización de datos. El escenario DEMO sólo se admite con base no relacional:
-// nunca se insertan datos ficticios en el SQL Server corporativo.
-var demoMode = false;
+// Inicialización de datos. La verja de contraseña demo (Demo:Enabled) es independiente
+// de la base de datos; los datos ficticios del seeder siguen limitados a la base en
+// memoria: nunca se insertan en una base relacional (SQL Server corporativo o PostgreSQL).
+var demoMode = builder.Configuration.GetValue<bool>("Demo:Enabled");
+var demoPersistente = false; // demo con base relacional: los datos cargados se conservan
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    if (db.Database.IsRelational())
+    demoPersistente = demoMode && db.Database.IsRelational();
+    if (!db.Database.IsRelational())
     {
-        db.Database.Migrate();
+        db.Database.EnsureCreated();
+        if (demoMode)
+            await DemoDataSeeder.SeedAsync(db);
+    }
+    else if (db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true)
+    {
+        // La demo persistente en PostgreSQL no usa migraciones (son de SQL Server):
+        // el esquema se crea directamente desde el modelo.
+        db.Database.EnsureCreated();
     }
     else
     {
-        db.Database.EnsureCreated();
-        demoMode = builder.Configuration.GetValue<bool>("Demo:Enabled");
-        if (demoMode)
-            await DemoDataSeeder.SeedAsync(db);
+        db.Database.Migrate();
     }
 }
 
@@ -85,6 +93,7 @@ app.Use(async (ctx, next) =>
     {
         h["Cache-Control"] = "no-store, max-age=0";
         ctx.Items["DemoMode"] = true;
+        ctx.Items["DemoPersistente"] = demoPersistente;
     }
     await next();
 });

@@ -3,6 +3,7 @@
     string Active(string controller) => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase) ? "active" : "";
     string? Current(string controller) => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase) ? "page" : null;
     var isDemo = Context.Items["DemoMode"] as bool? == true;
+    var isDemoPersistente = Context.Items["DemoPersistente"] as bool? == true;
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -49,7 +50,14 @@
         <aside class="demo-banner" aria-label="Aviso de demostración">
             <div class="demo-banner-inner">
                 <span class="demo-badge">DEMO</span>
-                <span><strong>Entorno de demostración</strong> · Todos los nombres, pedidos y contactos son ficticios. Los cambios son temporales y se restauran al reiniciar.</span>
+                @if (isDemoPersistente)
+                {
+                    <span><strong>Entorno de revisión</strong> · Los datos proceden de los listados cargados en «Carga de datos» y se conservan entre sesiones. No es el sistema corporativo: no envía reclamaciones reales.</span>
+                }
+                else
+                {
+                    <span><strong>Entorno de demostración</strong> · Todos los nombres, pedidos y contactos son ficticios. Los cambios son temporales y se restauran al reiniciar.</span>
+                }
             </div>
         </aside>
     }
@@ -70,7 +78,11 @@
 
     <footer class="site-footer">
         <div>Hospital Universitario de Fuenlabrada · Servicio de Suministros (Almacén) · SERMAS</div>
-        <div>@(isDemo ? "Demostración con información exclusivamente ficticia." : "Herramienta de gestión interna. Información de uso restringido y confidencial (RGPD / LOPDGDD).")</div>
+        <div>@(isDemoPersistente
+            ? "Entorno de revisión con datos de prueba. Información de uso restringido y confidencial (RGPD / LOPDGDD)."
+            : isDemo
+                ? "Demostración con información exclusivamente ficticia."
+                : "Herramienta de gestión interna. Información de uso restringido y confidencial (RGPD / LOPDGDD).")</div>
     </footer>
 
     <script src="~/js/site.js" asp-append-version="true"></script>
