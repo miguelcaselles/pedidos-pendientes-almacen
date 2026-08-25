@@ -16,6 +16,6 @@ services:
       - key: Demo__Enabled
         value: true
       - key: Demo__Password
-        value: Fuenlabradafa01
+        value: "Almacen@Fuenlabrada@01092026@"
       - key: ReverseProxy__TrustForwardedHeaders
         value: true
