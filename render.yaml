@@ -16,6 +16,6 @@ services:
       - key: Demo__Enabled
         value: true
       - key: Demo__Password
-        value: "Almacen@Fuenlabrada@01092026@"
+        sync: false # secreto: se gestiona solo desde el panel de Render (Environment)
       - key: ReverseProxy__TrustForwardedHeaders
         value: true
