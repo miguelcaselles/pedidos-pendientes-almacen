@@ -136,6 +136,15 @@
                                 {
                                     <span class="tag tag-claimed" title="Recepción parcial anotada: @rec.ToString("0.##") uds. ya recibidas">Parcial @rec.ToString("0.##")</span>
                                 }
+                                @if (!o.Recibido && !o.Anulado)
+                                {
+                                    <form method="post" asp-action="RecibirParcial" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search" class="parcial-inline" title="Recepción parcial: anota lo recibido; el resto sigue pendiente y reclamable">
+                                        @Html.AntiForgeryToken()
+                                        <input type="number" name="cantidad" step="any" min="0.01" max="@(o.PorEntregarCantidad?.ToString(System.Globalization.CultureInfo.InvariantCulture))" placeholder="uds" required
+                                               aria-label="Cantidad recibida parcialmente" class="parcial-input" />
+                                        <button type="submit" class="parcial-btn" aria-label="Anotar recepción parcial">◐ Anotar</button>
+                                    </form>
+                                }
                             </td>
                             <td>
                                 @if (o.Anulado) { <span class="tag tag-pending">Anulado</span> }
@@ -157,12 +166,6 @@
                                         <form method="post" asp-action="Recibir" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search">
                                             @Html.AntiForgeryToken()
                                             <button type="submit" class="icon-btn" aria-label="Marcar como recibido" title="Marcar como recibido (entrega completa)"><span aria-hidden="true">✓</span></button>
-                                        </form>
-                                        <form method="post" asp-action="RecibirParcial" asp-route-id="@o.Id" asp-route-estado="@Model.Estado" asp-route-search="@Model.Search" class="parcial-form" title="Recepción parcial: anota lo recibido; el resto sigue pendiente y reclamable">
-                                            @Html.AntiForgeryToken()
-                                            <input type="number" name="cantidad" step="any" min="0.01" max="@(o.PorEntregarCantidad?.ToString(System.Globalization.CultureInfo.InvariantCulture))" placeholder="uds" required
-                                                   aria-label="Cantidad recibida parcialmente" class="parcial-input" />
-                                            <button type="submit" class="icon-btn" aria-label="Anotar recepción parcial" title="Anotar recepción parcial"><span aria-hidden="true">◐</span></button>
                                         </form>
                                         @if (!o.EnFalta)
                                         {
