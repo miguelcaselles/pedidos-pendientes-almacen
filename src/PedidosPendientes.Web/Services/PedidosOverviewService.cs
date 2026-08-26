@@ -28,10 +28,20 @@ public class PedidosOverviewService
         => _settings.GetParametrosAsync(ct);
 
     /// <summary>Todas las líneas pendientes (ni recibidas, ni con historial, ni anuladas).</summary>
-    public Task<List<Order>> GetPendientesAsync(CancellationToken ct)
-        => _db.Orders.AsNoTracking()
-            .Where(o => !o.Recibido && !o.TieneHistorialEntrega && !o.Anulado)
+    public async Task<List<Order>> GetPendientesAsync(CancellationToken ct)
+    {
+        // Solo cuentan como pendientes las líneas presentes en el ÚLTIMO listado
+        // cargado: una línea que desaparece del ME2N diario es que se sirvió o
+        // anuló en SAP, y sin este filtro quedaría como pendiente fantasma
+        // acumulando alertas de reclamación para siempre.
+        var ultimaCarga = await _db.Orders.AsNoTracking()
+            .MaxAsync(o => (DateTimeOffset?)o.LastUploadAt, ct);
+
+        return await _db.Orders.AsNoTracking()
+            .Where(o => !o.Recibido && !o.TieneHistorialEntrega && !o.Anulado
+                        && (ultimaCarga == null || o.LastUploadAt == ultimaCarga))
             .ToListAsync(ct);
+    }
 
     public async Task<List<OrderRow>> EnrichAsync(IReadOnlyList<Order> orders,
         ReclamacionParametros p, CancellationToken ct)

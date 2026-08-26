@@ -17,6 +17,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 ENV ASPNETCORE_HTTP_PORTS=10000
 ENV ASPNETCORE_ENVIRONMENT=Production
+# Hora española: los sellos de carga/reclamación y los cortes de día se muestran
+# y calculan en la zona del hospital, no en UTC.
+ENV TZ=Europe/Madrid
 EXPOSE 10000
 
 COPY --from=build /app/publish .

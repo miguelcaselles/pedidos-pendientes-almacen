@@ -1,13 +1,26 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using PedidosPendientes.Infrastructure;
 using PedidosPendientes.Infrastructure.Data;
 using PedidosPendientes.Web.Services;
 
+// Cultura fija es-ES: los formatos de número/fecha no dependen de la configuración
+// regional del servidor (contenedor Linux sin LANG = cultura invariante; el Mac o
+// el IIS del hospital, es-ES). Los parsers de Excel usan cultura explícita aparte.
+var esES = new System.Globalization.CultureInfo("es-ES");
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = esES;
+System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = esES;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
-builder.Services.AddDataProtection();
+// Las claves de DataProtection (cookie de la verja demo, antiforgery) se guardan
+// en la base de datos: sobreviven a reinicios/hibernaciones del contenedor. Con
+// base en memoria el efecto es el mismo que el almacén efímero por defecto.
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<AppDbContext>()
+    .SetApplicationName("PedidosPendientesAlmacen");
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<PedidosOverviewService>();
 builder.Services.AddScoped<AuditoriaService>();
@@ -123,12 +136,20 @@ if (demoMode)
             path.StartsWith("/img/", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/lib/", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/favicon.ico", StringComparison.OrdinalIgnoreCase) ||
-            path.Equals("/robots.txt", StringComparison.OrdinalIgnoreCase);
+            path.Equals("/robots.txt", StringComparison.OrdinalIgnoreCase) ||
+            // La página de error debe poder re-ejecutarse sin pasar por la verja.
+            path.Equals("/Home/Error", StringComparison.OrdinalIgnoreCase);
 
         if (!allowed && !DemoAccess.ValidateToken(dpProvider, ctx.Request.Cookies[DemoAccess.CookieName]))
         {
-            var returnUrl = Uri.EscapeDataString(ctx.Request.Path + ctx.Request.QueryString);
-            ctx.Response.Redirect("/acceso?returnUrl=" + returnUrl);
+            // Un POST interceptado (p. ej. subir un Excel con la sesión caducada) no
+            // puede reanudarse con un GET a la misma ruta: se devuelve a la página
+            // de origen para que repita la acción tras identificarse.
+            var destino = HttpMethods.IsPost(ctx.Request.Method)
+                ? (Uri.TryCreate(ctx.Request.Headers.Referer.ToString(), UriKind.Absolute, out var referer)
+                    ? referer.PathAndQuery : "/")
+                : ctx.Request.Path + ctx.Request.QueryString;
+            ctx.Response.Redirect("/acceso?returnUrl=" + Uri.EscapeDataString(destino));
             return;
         }
 

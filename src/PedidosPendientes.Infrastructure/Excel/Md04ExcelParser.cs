@@ -34,9 +34,10 @@ public static partial class Md04ExcelParser
         var colPuntoPedido = Find(PuntoPedidoRegex());
         var colConsumo = Find(ConsumoRegex());
 
-        // Respaldo posicional mínimo: en el listado real el material es la 2ª columna
-        // (tras Status); en formatos antiguos era la primera.
-        if (colMaterial == -1) colMaterial = colStatus == 0 ? 1 : 0;
+        // Sin columna de material reconocible el fichero no es el MD04: se rechaza
+        // en vez de importar basura por posición.
+        if (colMaterial == -1)
+            throw new FormatException("No se reconocen las cabeceras del listado MD04 (falta la columna Material).");
 
         var result = new List<ParsedMd04Item>();
         foreach (var cells in rows.Skip(1))

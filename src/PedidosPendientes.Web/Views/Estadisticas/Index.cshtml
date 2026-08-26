@@ -2,31 +2,138 @@
 @{
     ViewData["Title"] = "Estadísticas";
     string OrdenClass(string o) => Model.Orden == o ? "active" : "";
+    var esES = new System.Globalization.CultureInfo("es-ES");
+
+    // Geometría del gráfico de actividad mensual (SVG server-side, sin librerías).
+    var meses = Model.PedidosPorMes;
+    var maxPedidos = meses.Count == 0 ? 0 : meses.Max(m => m.Pedidos);
 }
 
 <div class="page-heading">
     <div class="page-heading-main">
         <div class="eyebrow">Análisis de consumo</div>
         <h1 class="page-title">Periodicidad de pedido por artículo</h1>
-        <p class="page-sub">Con qué frecuencia se pide cada material, cuándo fue el último pedido y cuándo tocaría el siguiente.</p>
+        <p class="page-sub">Con qué frecuencia se pide cada material, cuándo fue el último pedido y cuándo tocaría el siguiente. Se calcula sobre el histórico acumulado de cargas: cuantos más listados diarios se carguen, más fiable.</p>
     </div>
 </div>
 
-<nav class="pills" aria-label="Ordenación">
-    <a class="@OrdenClass("pedidos")" asp-action="Index" asp-route-orden="pedidos" asp-route-search="@Model.Search">Más pedidos</a>
-    <a class="@OrdenClass("frecuencia")" asp-action="Index" asp-route-orden="frecuencia" asp-route-search="@Model.Search">Mayor frecuencia</a>
-    <a class="@OrdenClass("reciente")" asp-action="Index" asp-route-orden="reciente" asp-route-search="@Model.Search">Último pedido</a>
+<div class="stats">
+    <div class="stat is-primary">
+        <div class="label">Materiales</div>
+        <div class="value">@Model.TotalMateriales</div>
+        <div class="meta">en el análisis actual</div>
+    </div>
+    <div class="stat">
+        <div class="label">Con periodicidad</div>
+        <div class="value">@Model.ConPeriodicidad</div>
+        <div class="meta">≥ 2 pedidos en el histórico</div>
+    </div>
+    <a class="stat is-danger" asp-action="Index" asp-route-filtro="vencidos" asp-route-orden="ciclo" asp-route-search="@Model.Search">
+        <div class="label">Toca pedir</div>
+        <div class="value">@Model.TocaPedir</div>
+        <div class="meta">ciclo vencido y sin pendientes</div>
+    </a>
+    <div class="stat">
+        <div class="label">Con pendientes</div>
+        <div class="value">@Model.ConPendientes</div>
+        <div class="meta">materiales con líneas en curso</div>
+    </div>
+</div>
+
+@if (meses.Count > 0 || Model.DistribucionIntervalo.Any(d => d.Materiales > 0))
+{
+    <div class="charts-row">
+        @if (meses.Count > 0)
+        {
+            <div class="card chart-card">
+                <h2 class="chart-title">Pedidos lanzados por mes</h2>
+                <p class="hint">Documentos de compra distintos, según la fecha del pedido.</p>
+                @{
+                    // ViewBox 640x210: área de trazado 600x150 con margen para etiquetas.
+                    // Las coordenadas SVG se formatean SIEMPRE en cultura invariante
+                    // (con es-ES la coma decimal rompería los atributos).
+                    double plotW = 600, plotH = 150, left = 28, top = 18;
+                    var n = meses.Count;
+                    var band = plotW / n;
+                    var barW = Math.Min(24.0, band * 0.6);
+                    double Y(int v) => top + plotH - (maxPedidos == 0 ? 0 : v * plotH / maxPedidos);
+                    string N(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                    var baseY = N(top + plotH);
+                }
+                <svg viewBox="0 0 640 210" role="img" aria-label="Pedidos por mes" style="width:100%;height:auto">
+                    <line x1="@N(left)" y1="@baseY" x2="@N(left + plotW)" y2="@baseY" stroke="#dbe3ec" stroke-width="1" />
+                    @for (var i = 0; i < n; i++)
+                    {
+                        var (mes, pedidos) = meses[i];
+                        var x = left + i * band + (band - barW) / 2;
+                        var y = Y(pedidos);
+                        var h = top + plotH - y;
+                        var r = Math.Min(4.0, h);
+                        var esMax = pedidos == maxPedidos;
+                        <g>
+                            <title>@mes.ToString("MMMM yyyy", esES): @pedidos pedido@(pedidos == 1 ? "" : "s")</title>
+                            <path d="M @N(x) @baseY L @N(x) @N(y + r) Q @N(x) @N(y) @N(x + r) @N(y) L @N(x + barW - r) @N(y) Q @N(x + barW) @N(y) @N(x + barW) @N(y + r) L @N(x + barW) @baseY Z"
+                                  fill="#0877bd" />
+                            @* Etiqueta selectiva: solo el máximo y el mes más reciente.
+                               (<text> de SVG se emite con Html.Raw porque Razor reserva esa etiqueta.) *@
+                            @if (esMax || i == n - 1)
+                            {
+                                @Html.Raw($"<text x=\"{N(x + barW / 2)}\" y=\"{N(y - 6)}\" text-anchor=\"middle\" font-size=\"12\" font-weight=\"700\" fill=\"#33475c\">{pedidos}</text>")
+                            }
+                            @Html.Raw($"<text x=\"{N(x + barW / 2)}\" y=\"{N(top + plotH + 16)}\" text-anchor=\"middle\" font-size=\"10.5\" fill=\"#5d6f85\">{System.Net.WebUtility.HtmlEncode(mes.ToString("MMM yy", esES))}</text>")
+                        </g>
+                    }
+                </svg>
+            </div>
+        }
+        @if (Model.DistribucionIntervalo.Any(d => d.Materiales > 0))
+        {
+            var maxBin = Model.DistribucionIntervalo.Max(d => d.Materiales);
+            <div class="card chart-card">
+                <h2 class="chart-title">Cada cuánto se pide</h2>
+                <p class="hint">Materiales por intervalo medio entre pedidos (los de un solo pedido no puntúan).</p>
+                <div class="hbar-chart">
+                    @foreach (var (etiqueta, materiales) in Model.DistribucionIntervalo)
+                    {
+                        var pct = maxBin == 0 ? 0 : materiales * 100.0 / maxBin;
+                        <div class="hbar-row" title="@etiqueta: @materiales material@(materiales == 1 ? "" : "es")">
+                            <span class="hbar-label">@etiqueta</span>
+                            <span class="hbar-track"><span class="hbar-fill" style="width:@(pct.ToString("0", System.Globalization.CultureInfo.InvariantCulture))%"></span></span>
+                            <span class="hbar-value">@materiales</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<nav class="pills" aria-label="Ordenación y filtro">
+    <a class="@OrdenClass("pedidos")" asp-action="Index" asp-route-orden="pedidos" asp-route-search="@Model.Search" asp-route-filtro="@Model.Filtro">Más pedidos</a>
+    <a class="@OrdenClass("frecuencia")" asp-action="Index" asp-route-orden="frecuencia" asp-route-search="@Model.Search" asp-route-filtro="@Model.Filtro">Mayor frecuencia</a>
+    <a class="@OrdenClass("reciente")" asp-action="Index" asp-route-orden="reciente" asp-route-search="@Model.Search" asp-route-filtro="@Model.Filtro">Último pedido</a>
+    <a class="@OrdenClass("ciclo")" asp-action="Index" asp-route-orden="ciclo" asp-route-search="@Model.Search" asp-route-filtro="@Model.Filtro">Ciclo consumido</a>
+    <span class="spacer"></span>
+    @if (Model.Filtro == "vencidos")
+    {
+        <a class="pill-danger active" asp-action="Index" asp-route-orden="@Model.Orden" asp-route-search="@Model.Search" title="Quitar el filtro">Solo «toca pedir» ✕</a>
+    }
+    else
+    {
+        <a class="pill-danger" asp-action="Index" asp-route-orden="@Model.Orden" asp-route-search="@Model.Search" asp-route-filtro="vencidos">Solo «toca pedir»</a>
+    }
 </nav>
 
 <div class="card">
     <form method="get" class="flex flex-wrap mobile-stack" style="margin-bottom:16px" role="search">
         <input type="hidden" name="orden" value="@Model.Orden" />
+        <input type="hidden" name="filtro" value="@Model.Filtro" />
         <label class="sr-only" for="stats-search">Buscar material</label>
         <input id="stats-search" type="search" name="search" value="@Model.Search" placeholder="Código, descripción o proveedor…" style="max-width:440px" />
         <button type="submit" class="btn">Buscar</button>
         @if (!string.IsNullOrWhiteSpace(Model.Search))
         {
-            <a class="btn" asp-action="Index" asp-route-orden="@Model.Orden">Limpiar</a>
+            <a class="btn" asp-action="Index" asp-route-orden="@Model.Orden" asp-route-filtro="@Model.Filtro">Limpiar</a>
         }
         <span class="spacer"></span>
         <span class="muted" aria-live="polite">@Model.TotalMateriales material@(Model.TotalMateriales == 1 ? "" : "es")</span>
@@ -35,7 +142,7 @@
     @if (Model.Rows.Count == 0)
     {
         <div class="empty-state">
-            Sin datos todavía. La periodicidad se calcula sobre el histórico de pedidos cargados.
+            Sin datos para este filtro. La periodicidad se calcula sobre el histórico de pedidos cargados: carga el listado ME2N cada día y el análisis irá ganando precisión.
         </div>
     }
     else
@@ -50,6 +157,7 @@
                         <th title="Documentos de compra distintos">Pedidos</th>
                         <th title="Días naturales medios entre pedidos">Cada</th>
                         <th>Último pedido</th>
+                        <th title="Días desde el último pedido respecto al intervalo medio; 100% = tocaría pedir hoy">Ciclo</th>
                         <th title="Último pedido + intervalo medio">Próximo estimado</th>
                         <th>Cant. media</th>
                         <th>Pendientes</th>
@@ -71,6 +179,20 @@
                             <td>@r.NumPedidos</td>
                             <td>@(r.IntervaloMedioDias is double d ? $"{d:0} días" : "—")</td>
                             <td>@r.UltimoPedido.ToString("dd/MM/yyyy") <span class="muted">(hace @r.DiasDesdeUltimo d)</span></td>
+                            <td>
+                                @if (r.CicloPct is double pct)
+                                {
+                                    var nivel = pct >= 100 ? "is-over" : pct >= 80 ? "is-warn" : "is-ok";
+                                    <span class="ciclo" title="@pct% del intervalo medio transcurrido desde el último pedido">
+                                        <span class="ciclo-track"><span class="ciclo-fill @nivel" style="width:@(Math.Min(pct, 100).ToString("0", System.Globalization.CultureInfo.InvariantCulture))%"></span></span>
+                                        <span class="ciclo-num">@pct.ToString("0")%</span>
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="muted">—</span>
+                                }
+                            </td>
                             <td>
                                 @if (r.ProximoEstimado is DateOnly prox)
                                 {
@@ -110,6 +232,7 @@
             <ul>
                 <li><strong>Pedidos</strong>: documentos de compra distintos del material en todo el histórico cargado (líneas anuladas excluidas).</li>
                 <li><strong>Cada X días</strong>: media de días naturales entre pedidos consecutivos (necesita al menos 2 pedidos).</li>
+                <li><strong>Ciclo</strong>: porcentaje del intervalo medio transcurrido desde el último pedido. Azul: en plazo · ámbar: se acerca (≥ 80 %) · rojo: superado.</li>
                 <li><strong>Próximo estimado</strong>: fecha del último pedido más el intervalo medio. <span class="tag tag-reclamar">TOCA PEDIR</span> marca los que ya lo superan sin líneas pendientes.</li>
             </ul>
         </details>

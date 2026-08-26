@@ -26,12 +26,11 @@ public static partial class CecosExcelParser
         var colDenCeco = Find(DenominacionRegex());
         var colDescripcion = Find(DescripcionRegex());
 
-        // Respaldo posicional (orden real del fichero).
+        // Sin las cabeceras mínimas el fichero no es la relación CECOs-Almacenes:
+        // se rechaza en vez de importar basura por posición (p. ej. un ME2N subido
+        // aquí por error machacaría la relación real).
         if (colAlmacen == -1 || colCentroCoste == -1)
-        {
-            colCentro = 0; colAlmacen = 1; colDenAlmacen = 2;
-            colCentroCoste = 7; colDenCeco = 8; colDescripcion = 9;
-        }
+            throw new FormatException("No se reconocen las cabeceras de la relación CECOs - Almacenes (faltan «Almacén» o «Centro de coste»).");
 
         var result = new List<ParsedAlmacenCeco>();
         foreach (var cells in rows.Skip(1))

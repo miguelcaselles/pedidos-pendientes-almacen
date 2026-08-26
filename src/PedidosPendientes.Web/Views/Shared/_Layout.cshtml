@@ -72,6 +72,20 @@
             {
                 <div class="alert alert-danger" role="alert">@err</div>
             }
+            @if (TempData["Mailto"] is string mailto)
+            {
+                <div class="alert alert-success" role="status">
+                    <a href="@mailto" id="mailto-borrador">Abrir el borrador de la reclamación en el correo</a>
+                    <span class="muted">(si Outlook no se abrió solo, pulsa el enlace)</span>
+                </div>
+                <script>
+                    // Abre el cliente de correo del puesto con el borrador; el enlace
+                    // visible queda como respaldo si el navegador bloquea la apertura.
+                    window.addEventListener('DOMContentLoaded', function () {
+                        window.location.href = document.getElementById('mailto-borrador').href;
+                    });
+                </script>
+            }
             @RenderBody()
         </main>
     </div>

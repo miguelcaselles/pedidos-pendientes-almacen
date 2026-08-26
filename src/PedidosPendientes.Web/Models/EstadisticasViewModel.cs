@@ -6,10 +6,23 @@ public class EstadisticasViewModel
 
     public string? Search { get; set; }
 
-    /// <summary>Orden activo: "frecuencia" | "reciente" | "pedidos".</summary>
+    /// <summary>Orden activo: "frecuencia" | "reciente" | "ciclo" | "pedidos".</summary>
     public string Orden { get; set; } = "pedidos";
 
+    /// <summary>Filtro activo: "" (todos) | "vencidos" (solo «toca pedir»).</summary>
+    public string Filtro { get; set; } = "";
+
     public int TotalMateriales { get; set; }
+    public int ConPeriodicidad { get; set; }
+    public int TocaPedir { get; set; }
+    public int ConPendientes { get; set; }
+
+    /// <summary>Documentos de compra distintos por mes (últimos 12 meses con datos).</summary>
+    public IReadOnlyList<(DateOnly Mes, int Pedidos)> PedidosPorMes { get; set; } = [];
+
+    /// <summary>Materiales por tramo de intervalo medio entre pedidos.</summary>
+    public IReadOnlyList<(string Etiqueta, int Materiales)> DistribucionIntervalo { get; set; } = [];
+
     public bool Truncado { get; set; }
 }
 
@@ -48,4 +61,12 @@ public class EstadisticaMaterial
     public bool ProximoVencido => ProximoEstimado is not null
         && ProximoEstimado < DateOnly.FromDateTime(DateTime.Today)
         && PendientesActuales == 0;
+
+    /// <summary>
+    /// Porcentaje del ciclo de pedido consumido: días desde el último pedido sobre
+    /// el intervalo medio (100 = tocaría pedir hoy; &gt;100 = vencido). Null sin intervalo.
+    /// </summary>
+    public double? CicloPct => IntervaloMedioDias is double d && d > 0
+        ? Math.Round(DiasDesdeUltimo * 100.0 / d)
+        : null;
 }

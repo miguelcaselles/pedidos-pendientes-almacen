@@ -33,34 +33,30 @@ public partial class ExcelOrderParser : IExcelOrderParser
         ["contratoMarco"] = ContratoMarcoRegex(),
     };
 
-    // Mapa posicional de respaldo (orden real del Excel de almacén).
-    private static readonly Dictionary<string, int> FallbackColumnMap = new()
-    {
-        ["documentoCompras"] = 0,
-        ["expedienteAdministrativo"] = 1,
-        ["centroCoste"] = 2,
-        ["material"] = 3,
-        ["tipoImputacion"] = 4,
-        ["textoBreve"] = 5,
-        ["numMaterialProveedor"] = 6,
-        ["fechaDocumento"] = 7,
-        ["historialEntrega"] = 8,
-        ["proveedor"] = 9,
-        ["referenciaProveedor"] = 10,
-        ["almacen"] = 11,
-        ["porEntregarCantidad"] = 12,
-    };
+    // La cabecera puede no estar en la primera fila (exports SAP con título encima).
+    private const int MaxFilasBusquedaCabecera = 10;
 
     public IReadOnlyList<ParsedOrder> Parse(Stream xlsx)
     {
         var rows = ExcelSax.ReadAllRows(xlsx);
         if (rows.Count == 0) return [];
 
-        var map = DetectColumns(rows[0]);
-        if (!map.TryGetValue("documentoCompras", out var docCol)) return [];
+        // Se busca la fila de cabecera entre las primeras; si no aparece, el fichero
+        // no es el listado de pedidos (p. ej. se subió el MD04 por error) y se
+        // rechaza en vez de importar datos basura con un mapa posicional.
+        Dictionary<string, int>? map = null;
+        int headerRow = -1;
+        for (var i = 0; i < Math.Min(rows.Count, MaxFilasBusquedaCabecera); i++)
+        {
+            var candidate = DetectColumns(rows[i]);
+            if (candidate is not null) { map = candidate; headerRow = i; break; }
+        }
+        if (map is null)
+            throw new FormatException("No se reconocen las cabeceras del listado de pedidos (ME2N).");
 
+        var docCol = map["documentoCompras"];
         var result = new List<ParsedOrder>();
-        foreach (var cells in rows.Skip(1))
+        foreach (var cells in rows.Skip(headerRow + 1))
         {
             var doc0 = ExcelSax.Get(cells, docCol).Trim();
             if (string.IsNullOrEmpty(doc0)) continue;
@@ -93,7 +89,8 @@ public partial class ExcelOrderParser : IExcelOrderParser
         return result;
     }
 
-    private static Dictionary<string, int> DetectColumns(List<string> headerCells)
+    /// <summary>Detecta las columnas por cabecera; null si la fila no es la cabecera del listado.</summary>
+    private static Dictionary<string, int>? DetectColumns(List<string> headerCells)
     {
         var headers = headerCells.Select(h => h.Trim()).ToList();
         var map = new Dictionary<string, int>();
@@ -104,10 +101,7 @@ public partial class ExcelOrderParser : IExcelOrderParser
         }
 
         // Necesitamos al menos documento + material para fiarnos de las cabeceras.
-        if (!map.ContainsKey("documentoCompras") || !map.ContainsKey("material"))
-            return new Dictionary<string, int>(FallbackColumnMap);
-
-        return map;
+        return map.ContainsKey("documentoCompras") && map.ContainsKey("material") ? map : null;
     }
 
     private static int Idx(Dictionary<string, int> map, string field)
@@ -141,10 +135,12 @@ public partial class ExcelOrderParser : IExcelOrderParser
             catch { /* sigue */ }
         }
 
-        // ISO (incluye "2022-07-28T22:00:44.000Z" de la muestra).
+        // ISO (incluye "2022-07-28T22:00:44.000Z" de la muestra). El instante UTC se
+        // convierte a hora local (el contenedor corre con TZ=Europe/Madrid) para que
+        // la medianoche española no retroceda la fecha un día.
         if (DateTime.TryParse(str, CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var iso))
-            return DateOnly.FromDateTime(iso);
+            return DateOnly.FromDateTime(iso.ToLocalTime());
 
         // Formatos europeos dd.MM.yyyy / dd/MM/yyyy.
         string[] formats = ["dd.MM.yyyy", "d.M.yyyy", "dd/MM/yyyy", "d/M/yyyy"];

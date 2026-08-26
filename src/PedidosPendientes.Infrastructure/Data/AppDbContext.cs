@@ -1,11 +1,18 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using PedidosPendientes.Core.Entities;
 
 namespace PedidosPendientes.Infrastructure.Data;
 
-public class AppDbContext : DbContext
+public class AppDbContext : DbContext, IDataProtectionKeyContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    /// <summary>
+    /// Claves de DataProtection (cookies de acceso demo, antiforgery). Persistidas
+    /// en la base de datos para que sobrevivan a los reinicios del contenedor.
+    /// </summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<Proveedor> Proveedores => Set<Proveedor>();

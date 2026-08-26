@@ -88,13 +88,20 @@ internal static class ExcelSax
     {
         s = s.Trim();
         if (string.IsNullOrEmpty(s)) return null;
-        // El valor crudo de OpenXML usa punto decimal (invariante).
-        if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d))
-            return d;
-        // Respaldo: formato europeo con coma decimal.
-        s = s.Replace(".", "", StringComparison.Ordinal).Replace(',', '.');
-        if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out d))
-            return d;
-        return null;
+
+        // Con coma es formato europeo ("1.234,56" o "1234,56"): la coma es SIEMPRE
+        // el separador decimal. No se deja que el parser invariante la trate como
+        // separador de miles ("1,5" NO son 15 unidades).
+        if (s.Contains(','))
+        {
+            var eu = s.Replace(".", "", StringComparison.Ordinal).Replace(',', '.');
+            return decimal.TryParse(eu, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+                ? d : null;
+        }
+
+        // Sin coma: valor crudo de OpenXML (punto decimal, puede venir en notación
+        // científica). Sin separador de miles: "1.234" es 1,234, no 1234.
+        return decimal.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var inv)
+            ? inv : null;
     }
 }

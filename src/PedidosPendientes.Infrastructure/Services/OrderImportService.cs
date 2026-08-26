@@ -40,13 +40,25 @@ public class OrderImportService : IOrderImportService
         if (parsed.Count == 0)
             return await LogAsync(fileName, new UploadResult { Success = false, Message = "El archivo no contiene filas de pedidos válidas." }, ct);
 
-        // Deduplicar filas con la misma clave (Documento+Material): SAP puede exportar
-        // líneas idénticas repetidas. Nos quedamos con la primera ocurrencia.
+        // Agrupar filas con la misma clave (Documento+Material): SAP puede exportar
+        // varias posiciones del mismo material en el mismo pedido (entregas
+        // escalonadas). Se agregan sumando cantidades para no perder unidades.
         var deduped = parsed
             .GroupBy(p => (p.DocumentoCompras, p.Material))
-            .Select(g => g.First())
+            .Select(g =>
+            {
+                var primera = g.First();
+                if (g.Count() > 1)
+                {
+                    primera.CantidadPedido = g.Any(x => x.CantidadPedido is not null)
+                        ? g.Sum(x => x.CantidadPedido ?? 0) : null;
+                    primera.PorEntregarCantidad = g.Any(x => x.PorEntregarCantidad is not null)
+                        ? g.Sum(x => x.PorEntregarCantidad ?? 0) : null;
+                }
+                return primera;
+            })
             .ToList();
-        var descartadasPorDuplicado = parsed.Count - deduped.Count;
+        var agregadasPorDuplicado = parsed.Count - deduped.Count;
 
         var now = DateTimeOffset.UtcNow;
 
@@ -115,11 +127,11 @@ public class OrderImportService : IOrderImportService
         await _db.SaveChangesAsync(ct);
 
         var msg = $"Importación correcta: {insertados} nuevos, {actualizados} actualizados.";
-        if (descartadasPorDuplicado > 0)
-            msg += $" Se descartaron {descartadasPorDuplicado} líneas duplicadas del fichero.";
+        if (agregadasPorDuplicado > 0)
+            msg += $" {agregadasPorDuplicado} líneas repetidas del fichero se sumaron a su línea principal.";
 
-        _log.LogInformation("Importación de pedidos: {Insertados} nuevos, {Actualizados} actualizados, {Dups} duplicados descartados",
-            insertados, actualizados, descartadasPorDuplicado);
+        _log.LogInformation("Importación de pedidos: {Insertados} nuevos, {Actualizados} actualizados, {Dups} líneas agregadas por duplicado",
+            insertados, actualizados, agregadasPorDuplicado);
 
         return await LogAsync(fileName, new UploadResult
         {

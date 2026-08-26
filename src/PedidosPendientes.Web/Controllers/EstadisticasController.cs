@@ -18,9 +18,10 @@ public class EstadisticasController : Controller
 
     public EstadisticasController(AppDbContext db) => _db = db;
 
-    public async Task<IActionResult> Index(string? search, string? orden, CancellationToken ct)
+    public async Task<IActionResult> Index(string? search, string? orden, string? filtro, CancellationToken ct)
     {
         orden = (orden ?? "pedidos").ToLowerInvariant();
+        filtro = (filtro ?? "").ToLowerInvariant();
         var hoy = DateOnly.FromDateTime(DateTime.Today);
 
         // Histórico completo de líneas (anuladas excluidas): base de la periodicidad.
@@ -97,18 +98,56 @@ public class EstadisticasController : Controller
                 (r.ProveedorHabitual?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
+        if (filtro == "vencidos")
+            rows = rows.Where(r => r.ProximoVencido);
+
         var ordenadas = (orden switch
         {
             "frecuencia" => rows.OrderBy(r => r.IntervaloMedioDias ?? double.MaxValue),
             "reciente" => rows.OrderByDescending(r => r.UltimoPedido),
+            "ciclo" => rows.OrderByDescending(r => r.CicloPct ?? -1),
             _ => rows.OrderByDescending(r => r.NumPedidos),
         }).ToList();
+
+        // --- Datos de los gráficos (sobre el conjunto filtrado) ---
+
+        // Actividad: documentos de compra distintos por mes (últimos 12 meses con datos).
+        var materialesVisibles = ordenadas.Select(r => r.Material).ToHashSet();
+        var pedidosPorMes = lineas
+            .Where(l => materialesVisibles.Contains(l.Material))
+            .GroupBy(l => l.DocumentoCompras)
+            .Select(g => g.Min(l => l.FechaDocumento))
+            .GroupBy(f => new DateOnly(f.Year, f.Month, 1))
+            .Select(g => (Mes: g.Key, Pedidos: g.Count()))
+            .OrderBy(x => x.Mes)
+            .TakeLast(12)
+            .ToList();
+
+        // Distribución de la periodicidad (solo materiales con intervalo calculable).
+        var bins = new (string Etiqueta, double Desde, double Hasta)[]
+        {
+            ("≤ 1 sem", 0, 7.5),
+            ("1-2 sem", 7.5, 15.5),
+            ("2-4 sem", 15.5, 31.5),
+            ("1-2 meses", 31.5, 62.5),
+            ("> 2 meses", 62.5, double.MaxValue),
+        };
+        var distribucion = bins
+            .Select(b => (b.Etiqueta,
+                Materiales: ordenadas.Count(r => r.IntervaloMedioDias is double d && d > b.Desde && d <= b.Hasta)))
+            .ToList();
 
         var vm = new EstadisticasViewModel
         {
             Search = search,
             Orden = orden,
+            Filtro = filtro,
             TotalMateriales = ordenadas.Count,
+            ConPeriodicidad = ordenadas.Count(r => r.IntervaloMedioDias is not null),
+            TocaPedir = ordenadas.Count(r => r.ProximoVencido),
+            ConPendientes = ordenadas.Count(r => r.PendientesActuales > 0),
+            PedidosPorMes = pedidosPorMes,
+            DistribucionIntervalo = distribucion,
             Truncado = ordenadas.Count > MaxFilas,
             Rows = ordenadas.Take(MaxFilas).ToList(),
         };

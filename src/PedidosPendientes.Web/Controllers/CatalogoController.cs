@@ -110,8 +110,27 @@ public class CatalogoController : Controller
         if (material.Length == 0) return RedirectToAction(nameof(Index));
 
         var ficha = await _db.ProductoFichas.AsNoTracking()
-            .Include(f => f.Adjuntos)
             .FirstOrDefaultAsync(f => f.Material == material, ct);
+
+        // Los adjuntos se listan sin traer su contenido (pueden ser PDFs de MB):
+        // solo metadatos para pintar nombre, tamaño y fecha.
+        if (ficha is not null)
+        {
+            ficha.Adjuntos = (await _db.ProductoAdjuntos.AsNoTracking()
+                    .Where(a => a.ProductoFichaId == ficha.Id)
+                    .Select(a => new { a.Id, a.FileName, a.ContentType, a.Size, a.SubidoAt })
+                    .ToListAsync(ct))
+                .Select(a => new ProductoAdjunto
+                {
+                    Id = a.Id,
+                    ProductoFichaId = ficha.Id,
+                    FileName = a.FileName,
+                    ContentType = a.ContentType,
+                    Size = a.Size,
+                    SubidoAt = a.SubidoAt,
+                })
+                .ToList();
+        }
 
         // Contexto del material en el resto de la aplicación.
         var lineas = await _db.Orders.AsNoTracking()
@@ -146,10 +165,21 @@ public class CatalogoController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Guardar(string material, string? denominacion,
         string? descripcionAmpliada, string? materialesAlternativos,
-        decimal? presupuestoUnitario, string? notas, CancellationToken ct)
+        string? presupuestoUnitario, string? notas, CancellationToken ct)
     {
         material = (material ?? string.Empty).Trim();
         if (material.Length == 0) return RedirectToAction(nameof(Index));
+
+        // El input type=number envía punto decimal; se parsea a mano (aceptando
+        // también coma) para no depender de la cultura del servidor.
+        decimal? presupuesto = null;
+        if (!string.IsNullOrWhiteSpace(presupuestoUnitario))
+        {
+            if (decimal.TryParse(presupuestoUnitario.Replace(',', '.'),
+                    System.Globalization.NumberStyles.Number,
+                    System.Globalization.CultureInfo.InvariantCulture, out var p))
+                presupuesto = p;
+        }
 
         var ficha = await _db.ProductoFichas.FirstOrDefaultAsync(f => f.Material == material, ct);
         if (ficha is null)
@@ -161,7 +191,7 @@ public class CatalogoController : Controller
         ficha.Denominacion = Limpiar(denominacion, 255);
         ficha.DescripcionAmpliada = Limpiar(descripcionAmpliada, 2000);
         ficha.MaterialesAlternativos = Limpiar(materialesAlternativos, 1000);
-        ficha.PresupuestoUnitario = presupuestoUnitario is < 0 ? null : presupuestoUnitario;
+        ficha.PresupuestoUnitario = presupuesto is < 0 ? null : presupuesto;
         ficha.Notas = Limpiar(notas, 2000);
 
         await _db.SaveChangesAsync(ct);
