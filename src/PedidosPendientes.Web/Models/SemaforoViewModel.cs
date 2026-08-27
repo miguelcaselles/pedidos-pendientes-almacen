@@ -36,8 +36,15 @@ public class SemaforoRow
 {
     public required StockMd04Item Item { get; init; }
 
-    /// <summary>Pedidos pendientes lanzados para este material (vacío = ¡sin pedido!).</summary>
+    /// <summary>Pedidos lanzados (no recibidos ni anulados) para este material.</summary>
     public IReadOnlyList<Order> PedidosPendientes { get; init; } = [];
 
     public bool TienePedido => PedidosPendientes.Count > 0;
+
+    /// <summary>
+    /// Realmente sin pedido lanzado: no hay líneas ME2N del material Y el propio
+    /// MD04 tampoco señala pedido fuera de plazo (ME3 &gt; 0 significa que SAP ya
+    /// conoce un pedido, aunque no aparezca en el ME2N cargado).
+    /// </summary>
+    public bool SinPedido => !TienePedido && (Item.PedidosFueraPlazo ?? 0) == 0;
 }

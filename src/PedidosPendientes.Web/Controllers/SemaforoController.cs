@@ -34,10 +34,13 @@ public class SemaforoController : Controller
             .ThenBy(s => s.Material)
             .ToListAsync(ct);
 
-        // Pedidos pendientes agrupados por material (para saber si hay pedido lanzado).
+        // Pedidos agrupados por material (para saber si hay pedido lanzado). Aquí NO
+        // se excluyen las líneas con historial de entrega: un pedido con entregas
+        // parciales sigue siendo un pedido lanzado, aunque no cuente como
+        // "pendiente de reclamar" en la pestaña de pedidos.
         var materiales = items.Select(i => i.Material).Distinct().ToList();
         var pendientes = await _db.Orders.AsNoTracking()
-            .Where(o => !o.Recibido && !o.TieneHistorialEntrega && !o.Anulado
+            .Where(o => !o.Recibido && !o.Anulado
                         && materiales.Contains(o.Material))
             .ToListAsync(ct);
         var pedidosPorMaterial = pendientes.GroupBy(o => o.Material)
@@ -56,7 +59,7 @@ public class SemaforoController : Controller
             TotalAlmacenaje = totales.FirstOrDefault(t => t.Ambito == "almacenaje")?.Total ?? 0,
             TotalNoAlmacenaje = totales.FirstOrDefault(t => t.Ambito == "noalmacenaje")?.Total ?? 0,
             Rojos = rows.Count(r => r.Item.Semaforo == "rojo"),
-            RojosSinPedido = rows.Count(r => r.Item.Semaforo == "rojo" && !r.TienePedido),
+            RojosSinPedido = rows.Count(r => r.Item.Semaforo == "rojo" && r.SinPedido),
             Amarillos = rows.Count(r => r.Item.Semaforo == "amarillo"),
             Verdes = rows.Count(r => r.Item.Semaforo == "verde"),
             FueraPlazo = rows.Count(r => r.Item.PedidosFueraPlazo > 0),
@@ -69,7 +72,7 @@ public class SemaforoController : Controller
                 "fueraplazo" => rows.Where(r => r.Item.PedidosFueraPlazo > 0).ToList(),
                 "bajoseguridad" => rows.Where(r => r.Item.BajoStockSeguridad > 0).ToList(),
                 "todos" => rows,
-                _ => rows.Where(r => r.Item.Semaforo == "rojo" && !r.TienePedido).ToList(),
+                _ => rows.Where(r => r.Item.Semaforo == "rojo" && r.SinPedido).ToList(),
             },
         };
 

@@ -71,13 +71,22 @@ public class HomeController : Controller
             || vm.UltimaPedidos.At < DateTimeOffset.UtcNow.AddDays(-p.DiasAvisoCargaObsoleta);
 
         // --- Semáforo MD04: rojos y rojos sin pedido lanzado ---
+        // Mismo criterio que la pestaña Semáforo: cuentan como "con pedido" todas
+        // las líneas lanzadas (aunque tengan historial de entrega) y los materiales
+        // cuyo MD04 ya señala pedido fuera de plazo (ME3 > 0).
         var rojos = await _db.StockMd04.AsNoTracking()
             .Where(s => s.Semaforo == "rojo")
-            .Select(s => s.Material)
+            .Select(s => new { s.Material, s.PedidosFueraPlazo })
             .ToListAsync(ct);
         vm.Md04Rojos = rojos.Count;
-        var materialesPendientes = pendientes.Select(o => o.Material).ToHashSet();
-        vm.Md04RojosSinPedido = rojos.Count(m => !materialesPendientes.Contains(m));
+        var materialesRojos = rojos.Select(r => r.Material).Distinct().ToList();
+        var materialesConPedido = (await _db.Orders.AsNoTracking()
+                .Where(o => !o.Recibido && !o.Anulado && materialesRojos.Contains(o.Material))
+                .Select(o => o.Material)
+                .ToListAsync(ct))
+            .ToHashSet();
+        vm.Md04RojosSinPedido = rojos.Count(r =>
+            !materialesConPedido.Contains(r.Material) && (r.PedidosFueraPlazo ?? 0) == 0);
         vm.Md04CargadoAt = await _db.StockMd04.MaxAsync(s => (DateTimeOffset?)s.CargadoAt, ct);
 
         // --- Incidencias por mes (últimos 6 meses) ---

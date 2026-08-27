@@ -101,7 +101,7 @@ else
                         @foreach (var r in Model.Rows)
                         {
                             var i = r.Item;
-                            <tr class="@(i.Semaforo == "rojo" && !r.TienePedido ? "row-llamar" : "")">
+                            <tr class="@(i.Semaforo == "rojo" && r.SinPedido ? "row-llamar" : "")">
                                 <td><span class="dot dot-@i.Semaforo" title="@i.Semaforo"></span></td>
                                 <td><span class="muted">@(i.StatusNexus ?? i.Semaforo)</span></td>
                                 <td>@i.Material</td>
@@ -140,6 +140,10 @@ else
                                         {
                                             <span class="muted">y @(r.PedidosPendientes.Count - 3) más…</span>
                                         }
+                                    }
+                                    else if (i.PedidosFueraPlazo > 0)
+                                    {
+                                        <span class="tag tag-claimed" title="El MD04 señala pedido fuera de plazo de entrega (ME3): hay pedido lanzado aunque no aparezca en el listado ME2N cargado">PEDIDO EN CURSO (ME3)</span>
                                     }
                                     else
                                     {

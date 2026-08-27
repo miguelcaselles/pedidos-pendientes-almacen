@@ -524,3 +524,18 @@ select {
 .ciclo-fill.is-warn { background: var(--warning); }
 .ciclo-fill.is-over { background: var(--danger); }
 .ciclo-num { font-size: 12px; color: var(--muted-2); font-variant-numeric: tabular-nums; min-width: 34px; }
+
+/* --- Columna de acciones fija a la derecha en la tabla de pedidos ---
+   Con los listados reales la tabla supera el ancho de la pantalla y las acciones
+   quedaban fuera de la vista (solo accesibles con scroll horizontal). La última
+   columna se fija al borde derecho con fondo opaco que respeta el zebreado. */
+.orders-table th:last-child, .orders-table td:last-child {
+  position: sticky; right: 0; z-index: 1;
+  background: var(--surface, #fff);
+  box-shadow: -10px 0 10px -10px rgba(16, 36, 56, .25);
+}
+.orders-table thead th:last-child { z-index: 2; background: #fff; }
+table.data.orders-table tbody tr:nth-child(even):not(.row-llamar):not(.row-critico) td:last-child { background: #fbfcfe; }
+table.data.orders-table tr.row-llamar td:last-child { background: var(--danger-light); }
+table.data.orders-table tr.row-critico td:last-child { background: #fff7ed; }
+table.data.orders-table tbody tr:hover td:last-child { background: var(--primary-light); }
