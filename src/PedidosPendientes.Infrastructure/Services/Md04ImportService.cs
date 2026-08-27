@@ -31,9 +31,10 @@ public class Md04ImportService : IMd04ImportService
         var etiqueta = ambito == "noalmacenaje" ? "MD04 no almacenaje" : "MD04 almacenaje";
 
         IReadOnlyList<ParsedMd04Item> parsed;
+        Md04ExcelParser.Md04ParseInfo? info = null;
         try
         {
-            parsed = Md04ExcelParser.Parse(xlsx);
+            parsed = Md04ExcelParser.Parse(xlsx, out info);
         }
         catch (Exception ex)
         {
@@ -90,13 +91,25 @@ public class Md04ImportService : IMd04ImportService
         var rojos = parsed.Count(p => p.Semaforo == "rojo");
         var fueraPlazo = parsed.Count(p => p.PedidosFueraPlazo > 0);
         var bajoSeguridad = parsed.Count(p => p.BajoStockSeguridad > 0);
+        var msg = $"{etiqueta} cargado: {filas} materiales ({rojos} en rojo, " +
+                  $"{fueraPlazo} con pedido fuera de plazo, {bajoSeguridad} bajo stock de seguridad).";
+
+        // Autodiagnóstico: si el fichero no trae las columnas clave con un nombre
+        // reconocible, se avisa y se listan las cabeceras reales para poder
+        // adaptar el parser sin necesidad de acceder al fichero.
+        if (info is { ColumnasNoReconocidas.Count: > 0 })
+        {
+            msg += $" AVISO: no se reconocieron las columnas {string.Join(", ", info.ColumnasNoReconocidas)}" +
+                   $" — sin ellas el semáforo y las excepciones pueden quedar incompletos." +
+                   $" Cabeceras del fichero: {string.Join(" · ", info.Cabeceras.Take(14))}.";
+        }
+
         return await LogAsync(tipoLog, fileName, new UploadResult
         {
             Success = true,
             TotalParsed = parsed.Count,
             Insertados = filas,
-            Message = $"{etiqueta} cargado: {filas} materiales ({rojos} en rojo, " +
-                      $"{fueraPlazo} con pedido fuera de plazo, {bajoSeguridad} bajo stock de seguridad).",
+            Message = msg,
         }, ct);
     }
 

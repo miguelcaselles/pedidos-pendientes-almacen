@@ -14,12 +14,25 @@ namespace PedidosPendientes.Infrastructure.Excel;
 /// </summary>
 public static partial class Md04ExcelParser
 {
-    public static IReadOnlyList<ParsedMd04Item> Parse(Stream xlsx)
+    /// <summary>Diagnóstico de la detección de columnas: qué cabeceras trae el fichero
+    /// y qué columnas esperadas no se reconocieron (para avisar en el mensaje de carga).</summary>
+    public sealed record Md04ParseInfo(IReadOnlyList<string> Cabeceras, IReadOnlyList<string> ColumnasNoReconocidas);
+
+    public static IReadOnlyList<ParsedMd04Item> Parse(Stream xlsx) => Parse(xlsx, out _);
+
+    public static IReadOnlyList<ParsedMd04Item> Parse(Stream xlsx, out Md04ParseInfo info)
     {
         var rows = ExcelSax.ReadAllRows(xlsx);
+        info = new Md04ParseInfo([], []);
         if (rows.Count == 0) return [];
 
-        var headers = rows[0].Select(h => h.Trim()).ToList();
+        // La cabecera puede no estar en la primera fila (exports con título encima).
+        var headerRow = rows.FindIndex(0, Math.Min(rows.Count, 10),
+            r => r.Any(h => MaterialRegex().IsMatch(h.Trim())));
+        if (headerRow == -1)
+            throw new FormatException("No se reconocen las cabeceras del listado MD04 (falta la columna Material).");
+
+        var headers = rows[headerRow].Select(h => h.Trim()).ToList();
         int Find(Regex rx) => headers.FindIndex(h => rx.IsMatch(h));
 
         var colStatus = Find(StatusRegex());
@@ -33,14 +46,25 @@ public static partial class Md04ExcelParser
         var colStock = Find(StockRegex());
         var colPuntoPedido = Find(PuntoPedidoRegex());
         var colConsumo = Find(ConsumoRegex());
+        // Algunos exports de MD04 traen una columna "Excepción" cuyos VALORES son
+        // los códigos ("ME3", "ME6", "ME3 ME6"...), en vez de columnas ME3/ME6.
+        var colExcepcion = Find(ExcepcionRegex());
 
         // Sin columna de material reconocible el fichero no es el MD04: se rechaza
         // en vez de importar basura por posición.
         if (colMaterial == -1)
             throw new FormatException("No se reconocen las cabeceras del listado MD04 (falta la columna Material).");
 
+        // Diagnóstico: columnas clave del listado (Status/ME3/ME6) que el fichero
+        // no trae con un nombre reconocible.
+        var noReconocidas = new List<string>();
+        if (colStatus == -1 && colSemaforo == -1) noReconocidas.Add("Status");
+        if (colMe3 == -1 && colExcepcion == -1) noReconocidas.Add("ME3");
+        if (colMe6 == -1 && colExcepcion == -1) noReconocidas.Add("ME6");
+        info = new Md04ParseInfo(headers.Where(h => h.Length > 0).ToList(), noReconocidas);
+
         var result = new List<ParsedMd04Item>();
-        foreach (var cells in rows.Skip(1))
+        foreach (var cells in rows.Skip(headerRow + 1))
         {
             var material = ExcelSax.Get(cells, colMaterial).Trim();
             if (string.IsNullOrEmpty(material)) continue;
@@ -58,8 +82,10 @@ public static partial class Md04ExcelParser
                 Semaforo = NormalizeSemaforo(semaforoRaw, stock, puntoPedido),
                 StatusNexus = status,
                 AreaPlanificacion = ExcelSax.NullIfEmpty(ExcelSax.Get(cells, colArea)),
-                PedidosFueraPlazo = ParseCount(ExcelSax.Get(cells, colMe3)),
-                BajoStockSeguridad = ParseCount(ExcelSax.Get(cells, colMe6)),
+                PedidosFueraPlazo = ParseCount(ExcelSax.Get(cells, colMe3))
+                    ?? ExcepcionContiene(ExcelSax.Get(cells, colExcepcion), "ME3"),
+                BajoStockSeguridad = ParseCount(ExcelSax.Get(cells, colMe6))
+                    ?? ExcepcionContiene(ExcelSax.Get(cells, colExcepcion), "ME6"),
                 Stock = stock,
                 PuntoPedido = puntoPedido,
                 ConsumoMedio = ExcelSax.ParseDecimal(ExcelSax.Get(cells, colConsumo)),
@@ -75,6 +101,10 @@ public static partial class Md04ExcelParser
         if (s.Length == 0) return null;
         return int.TryParse(s, out var n) ? n : null;
     }
+
+    /// <summary>1 si el texto de la columna "Excepción" contiene el código dado; null si no.</summary>
+    private static int? ExcepcionContiene(string s, string codigo)
+        => s.Contains(codigo, StringComparison.OrdinalIgnoreCase) ? 1 : null;
 
     /// <summary>
     /// Normaliza el semáforo a rojo/amarillo/verde. Reconoce primero el Status de
@@ -145,4 +175,7 @@ public static partial class Md04ExcelParser
 
     [GeneratedRegex(@"consumo", RegexOptions.IgnoreCase)]
     private static partial Regex ConsumoRegex();
+
+    [GeneratedRegex(@"excepci|exc\.", RegexOptions.IgnoreCase)]
+    private static partial Regex ExcepcionRegex();
 }
