@@ -552,3 +552,13 @@ table.data.orders-table tbody tr:hover td:last-child { background: var(--primary
   .filters-row { align-items: stretch; }
   .filters-row .filter-field, .filters-row .filters-search, .filters-row .btn { flex: 1 1 46%; max-width: none; }
 }
+
+/* --- Tabla de pedidos ajustada al ancho de pantalla (sin scroll lateral) ---
+   Anchos fijos por colgroup + table-layout fixed: la tabla siempre mide el 100%
+   del contenedor y el texto envuelve dentro de su columna. */
+.orders-table { table-layout: fixed; width: 100%; font-size: 13.5px; }
+.orders-table th, .orders-table td { padding: 9px 8px; overflow-wrap: break-word; }
+.orders-table th:last-child, .orders-table td:last-child { min-width: 0; }
+.orders-table td.actions { white-space: normal; }
+.orders-table .cell-strong { font-weight: 650; }
+.orders-table .cell-sub { color: var(--muted-2); font-size: 12.3px; margin-top: 1px; }

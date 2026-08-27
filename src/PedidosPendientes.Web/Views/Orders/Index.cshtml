@@ -108,15 +108,21 @@
     {
         <div class="table-wrap desktop-orders">
             <table class="data orders-table">
+                <colgroup>
+                    <col style="width:11%" />
+                    <col style="width:25%" />
+                    <col style="width:16%" />
+                    <col style="width:13%" />
+                    <col style="width:13%" />
+                    <col style="width:10%" />
+                    <col style="width:12%" />
+                </colgroup>
                 <thead>
                     <tr>
-                        <th>Documento</th>
+                        <th title="Documento de compras, fecha y días hábiles transcurridos">Pedido</th>
                         <th>Material</th>
-                        <th>Descripción</th>
                         <th>Proveedor</th>
                         <th>Ubicación</th>
-                        <th>Fecha</th>
-                        <th title="Días hábiles desde la fecha del pedido">Días</th>
                         <th>Por entregar</th>
                         <th>Estado</th>
                         <th>Acciones</th>
@@ -127,15 +133,23 @@
                     {
                         var o = r.Order;
                         <tr class="@(r.Alerta == AlertaReclamacion.Llamar ? "row-llamar" : r.CriticidadNivel == "critico" ? "row-critico" : "")">
-                            <td>@o.DocumentoCompras</td>
                             <td>
-                                @o.Material
-                                @if (r.Clase is not null)
-                                {
-                                    <span class="clase clase-@r.Clase.ToLowerInvariant()" title="Clase @r.Clase: se reclama según su prioridad">@r.Clase</span>
-                                }
+                                <div class="cell-strong">@o.DocumentoCompras</div>
+                                <div class="cell-sub">
+                                    @o.FechaDocumento.ToString("dd/MM/yy")
+                                    · <span class="@(r.FueraPlazo ? "text-danger" : "")" title="@(r.FueraPlazo ? "Fuera del plazo objetivo de entrega" : "Días hábiles desde la fecha del pedido")">@r.DiasHabiles d. háb.</span>
+                                </div>
                             </td>
-                            <td class="wrap">@o.TextoBreve</td>
+                            <td class="wrap">
+                                <div class="cell-strong">
+                                    @o.Material
+                                    @if (r.Clase is not null)
+                                    {
+                                        <span class="clase clase-@r.Clase.ToLowerInvariant()" title="Clase @r.Clase: se reclama según su prioridad">@r.Clase</span>
+                                    }
+                                </div>
+                                <div class="cell-sub">@o.TextoBreve</div>
+                            </td>
                             <td class="wrap">
                                 @o.ProveedorNombre
                                 @if (o.ContratoMarco is not null)
@@ -147,7 +161,7 @@
                                     <span class="tag tag-am" title="Proveedor con acuerdo marco">AM</span>
                                 }
                             </td>
-                            <td>
+                            <td class="wrap">
                                 @o.Almacen
                                 @if (o.CentroCoste is not null)
                                 {
@@ -159,12 +173,6 @@
                                         @(r.CriticidadDescripcion ?? "Crítico")
                                     </span>
                                 }
-                            </td>
-                            <td>@o.FechaDocumento.ToString("dd/MM/yyyy")</td>
-                            <td>
-                                <span class="@(r.FueraPlazo ? "text-danger" : "")" title="@(r.FueraPlazo ? "Fuera del plazo objetivo de entrega" : "Dentro del plazo objetivo")">
-                                    @r.DiasHabiles
-                                </span>
                             </td>
                             <td>
                                 @(o.PorEntregarCantidad?.ToString("0.##") ?? "—")
