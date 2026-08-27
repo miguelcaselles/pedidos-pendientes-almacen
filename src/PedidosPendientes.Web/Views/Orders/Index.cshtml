@@ -30,27 +30,67 @@
 }
 
 <nav class="pills" aria-label="Filtrar por estado">
-    <a class="@TabClass("pendientes")" asp-action="Index" asp-route-search="@Model.Search">Pendientes <span class="count">@Model.TotalPendientes</span></a>
-    <a class="@TabClass("reclamar") pill-danger" asp-action="Index" asp-route-estado="reclamar" asp-route-search="@Model.Search">Para reclamar <span class="count">@Model.ParaReclamar</span></a>
-    <a class="@TabClass("alertas") pill-warning" asp-action="Index" asp-route-estado="alertas" asp-route-search="@Model.Search">Alertas <span class="count">@Model.ConAlerta</span></a>
-    <a class="@TabClass("reclamados")" asp-action="Index" asp-route-estado="reclamados" asp-route-search="@Model.Search">Reclamados <span class="count">@Model.Reclamados</span></a>
-    <a class="@TabClass("enfalta")" asp-action="Index" asp-route-estado="enfalta" asp-route-search="@Model.Search">En falta <span class="count">@Model.EnFalta</span></a>
-    <a class="@TabClass("recibidos")" asp-action="Index" asp-route-estado="recibidos" asp-route-search="@Model.Search">Recibidos <span class="count">@Model.Recibidos</span></a>
-    <a class="@TabClass("anulados")" asp-action="Index" asp-route-estado="anulados" asp-route-search="@Model.Search">Anulados <span class="count">@Model.Anulados</span></a>
+    <a class="@TabClass("pendientes")" asp-action="Index" asp-all-route-data="@Model.RutaFiltros("pendientes")">Pendientes <span class="count">@Model.TotalPendientes</span></a>
+    <a class="@TabClass("reclamar") pill-danger" asp-action="Index" asp-all-route-data="@Model.RutaFiltros("reclamar")">Para reclamar <span class="count">@Model.ParaReclamar</span></a>
+    <a class="@TabClass("alertas") pill-warning" asp-action="Index" asp-all-route-data="@Model.RutaFiltros("alertas")">Alertas <span class="count">@Model.ConAlerta</span></a>
+    <a class="@TabClass("reclamados")" asp-action="Index" asp-all-route-data="@Model.RutaFiltros("reclamados")">Reclamados <span class="count">@Model.Reclamados</span></a>
+    <a class="@TabClass("enfalta")" asp-action="Index" asp-all-route-data="@Model.RutaFiltros("enfalta")">En falta <span class="count">@Model.EnFalta</span></a>
+    <a class="@TabClass("recibidos")" asp-action="Index" asp-all-route-data="@Model.RutaFiltros("recibidos")">Recibidos <span class="count">@Model.Recibidos</span></a>
+    <a class="@TabClass("anulados")" asp-action="Index" asp-all-route-data="@Model.RutaFiltros("anulados")">Anulados <span class="count">@Model.Anulados</span></a>
 </nav>
 
 <div class="card">
-    <form method="get" class="flex flex-wrap mobile-stack" style="margin-bottom:16px" role="search">
+    <form method="get" class="filters-form" role="search">
         <input type="hidden" name="estado" value="@Model.Estado" />
-        <label class="sr-only" for="orders-search">Buscar pedidos</label>
-        <input id="orders-search" type="search" name="search" value="@Model.Search" placeholder="Documento, proveedor, material, almacén…" style="max-width:440px" />
-        <button type="submit" class="btn">Buscar</button>
-        @if (!string.IsNullOrWhiteSpace(Model.Search))
-        {
-            <a class="btn" asp-action="Index" asp-route-estado="@Model.Estado">Limpiar</a>
-        }
-        <span class="spacer"></span>
-        <span class="muted" aria-live="polite">@Model.Rows.Count resultado@(Model.Rows.Count == 1 ? "" : "s")</span>
+        <div class="filters-row">
+            <label class="sr-only" for="orders-search">Buscar pedidos</label>
+            <input id="orders-search" type="search" name="search" value="@Model.Search" placeholder="Documento, proveedor, material, almacén…" class="filters-search" />
+            <label class="filter-field">
+                <span>Desde</span>
+                <input type="date" name="desde" value="@Model.Desde" />
+            </label>
+            <label class="filter-field">
+                <span>Hasta</span>
+                <input type="date" name="hasta" value="@Model.Hasta" />
+            </label>
+            <label class="filter-field">
+                <span>Proveedor</span>
+                <select name="proveedor">
+                    <option value="">Todos</option>
+                    @foreach (var pr in Model.ProveedoresDisponibles)
+                    {
+                        <option value="@pr" selected="@(pr == Model.Proveedor)">@pr</option>
+                    }
+                </select>
+            </label>
+            <label class="filter-field">
+                <span>Almacén</span>
+                <select name="almacen">
+                    <option value="">Todos</option>
+                    @foreach (var al in Model.AlmacenesDisponibles)
+                    {
+                        <option value="@al" selected="@(al == Model.Almacen)">@al</option>
+                    }
+                </select>
+            </label>
+            <label class="filter-field">
+                <span>Clase</span>
+                <select name="clase">
+                    <option value="">Todas</option>
+                    @foreach (var cl in new[] { "A", "B", "C" })
+                    {
+                        <option value="@cl" selected="@(cl == Model.Clase)">@cl</option>
+                    }
+                </select>
+            </label>
+            <button type="submit" class="btn">Filtrar</button>
+            @if (!string.IsNullOrWhiteSpace(Model.Search) || Model.HayFiltros)
+            {
+                <a class="btn" asp-action="Index" asp-route-estado="@Model.Estado">Limpiar</a>
+            }
+            <span class="spacer"></span>
+            <span class="muted" aria-live="polite">@Model.Rows.Count resultado@(Model.Rows.Count == 1 ? "" : "s")</span>
+        </div>
     </form>
 
     @if (Model.Rows.Count == 0)

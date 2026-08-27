@@ -539,3 +539,16 @@ table.data.orders-table tbody tr:nth-child(even):not(.row-llamar):not(.row-criti
 table.data.orders-table tr.row-llamar td:last-child { background: var(--danger-light); }
 table.data.orders-table tr.row-critico td:last-child { background: #fff7ed; }
 table.data.orders-table tbody tr:hover td:last-child { background: var(--primary-light); }
+
+/* --- Filtros de la tabla de pedidos --- */
+.filters-form { margin-bottom: 16px; }
+.filters-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.filters-search { flex: 1 1 260px; max-width: 440px; }
+.filter-field { display: flex; flex-direction: column; gap: 2px; }
+.filter-field > span { font-size: 11px; font-weight: 700; color: var(--muted-2); text-transform: uppercase; letter-spacing: .04em; }
+.filter-field input[type="date"] { padding: 8px 9px; }
+.filter-field select { min-width: 120px; max-width: 220px; padding: 8px 9px; }
+@media (max-width: 760px) {
+  .filters-row { align-items: stretch; }
+  .filters-row .filter-field, .filters-row .filters-search, .filters-row .btn { flex: 1 1 46%; max-width: none; }
+}

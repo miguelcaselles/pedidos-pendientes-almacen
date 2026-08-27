@@ -21,10 +21,18 @@ public class OrdersController : Controller
         _email = email;
     }
 
-    public async Task<IActionResult> Index(string? search, string? estado, CancellationToken ct)
+    public async Task<IActionResult> Index(string? search, string? estado,
+        string? desde, string? hasta, string? proveedor, string? almacen, string? clase,
+        CancellationToken ct)
     {
         estado = (estado ?? "pendientes").ToLowerInvariant();
         var p = await _overview.GetParametrosAsync(ct);
+
+        // Fechas de los filtros en formato ISO (input type=date), independientes de cultura.
+        static DateOnly? ParseFecha(string? s) =>
+            DateOnly.TryParseExact(s, "yyyy-MM-dd", out var f) ? f : null;
+        var fDesde = ParseFecha(desde);
+        var fHasta = ParseFecha(hasta);
 
         // Todas las líneas pendientes, enriquecidas (clase, criticidad, alertas, riesgo).
         var pendientes = await _overview.GetPendientesAsync(ct);
@@ -34,6 +42,15 @@ public class OrdersController : Controller
         {
             Search = search,
             Estado = estado,
+            Desde = fDesde is null ? null : desde,
+            Hasta = fHasta is null ? null : hasta,
+            Proveedor = string.IsNullOrWhiteSpace(proveedor) ? null : proveedor,
+            Almacen = string.IsNullOrWhiteSpace(almacen) ? null : almacen,
+            Clase = string.IsNullOrWhiteSpace(clase) ? null : clase.Trim().ToUpperInvariant(),
+            ProveedoresDisponibles = rows.Where(r => r.Order.ProveedorNombre != null)
+                .Select(r => r.Order.ProveedorNombre!).Distinct().OrderBy(x => x).ToList(),
+            AlmacenesDisponibles = rows.Where(r => r.Order.Almacen != null)
+                .Select(r => r.Order.Almacen!).Distinct().OrderBy(x => x).ToList(),
             TotalPendientes = rows.Count,
             ParaReclamar = rows.Count(r => r.Alerta == AlertaReclamacion.Reclamar),
             ConAlerta = rows.Count(r => r.Alerta is AlertaReclamacion.SinRespuesta or AlertaReclamacion.Llamar),
@@ -72,6 +89,18 @@ public class OrdersController : Controller
                 (r.Order.Almacen?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 (r.Order.CentroCoste?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false));
         }
+
+        // Filtros adicionales: rango de fechas del pedido, proveedor, almacén y clase.
+        if (fDesde is not null)
+            filtradas = filtradas.Where(r => r.Order.FechaDocumento >= fDesde);
+        if (fHasta is not null)
+            filtradas = filtradas.Where(r => r.Order.FechaDocumento <= fHasta);
+        if (vm.Proveedor is not null)
+            filtradas = filtradas.Where(r => r.Order.ProveedorNombre == vm.Proveedor);
+        if (vm.Almacen is not null)
+            filtradas = filtradas.Where(r => r.Order.Almacen == vm.Almacen);
+        if (vm.Clase is not null)
+            filtradas = filtradas.Where(r => string.Equals(r.Clase, vm.Clase, StringComparison.OrdinalIgnoreCase));
 
         var lista = PedidosOverviewService.Priorizar(filtradas).ToList();
         vm.Truncado = lista.Count > 500;
