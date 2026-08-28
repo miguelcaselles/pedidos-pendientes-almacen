@@ -103,6 +103,10 @@ public class Md04ImportService : IMd04ImportService
                    $" — sin ellas el semáforo y las excepciones pueden quedar incompletos." +
                    $" Cabeceras del fichero: {string.Join(" · ", info.Cabeceras.Take(14))}.";
         }
+        // Durante el pilotaje, el mapeo de columnas clave se muestra siempre: permite
+        // detectar una columna mal asignada (que "casa" pero no contiene lo esperado).
+        if (info is { Mapeo.Count: > 0 })
+            msg += $" [Mapeo: {string.Join(" · ", info.Mapeo)}]";
 
         return await LogAsync(tipoLog, fileName, new UploadResult
         {

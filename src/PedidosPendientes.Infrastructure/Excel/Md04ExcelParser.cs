@@ -14,16 +14,20 @@ namespace PedidosPendientes.Infrastructure.Excel;
 /// </summary>
 public static partial class Md04ExcelParser
 {
-    /// <summary>Diagnóstico de la detección de columnas: qué cabeceras trae el fichero
-    /// y qué columnas esperadas no se reconocieron (para avisar en el mensaje de carga).</summary>
-    public sealed record Md04ParseInfo(IReadOnlyList<string> Cabeceras, IReadOnlyList<string> ColumnasNoReconocidas);
+    /// <summary>Diagnóstico de la detección de columnas: qué cabeceras trae el fichero,
+    /// qué columnas esperadas no se reconocieron y a qué cabecera real quedó asignado
+    /// cada campo clave (para el mensaje de carga).</summary>
+    public sealed record Md04ParseInfo(
+        IReadOnlyList<string> Cabeceras,
+        IReadOnlyList<string> ColumnasNoReconocidas,
+        IReadOnlyList<string> Mapeo);
 
     public static IReadOnlyList<ParsedMd04Item> Parse(Stream xlsx) => Parse(xlsx, out _);
 
     public static IReadOnlyList<ParsedMd04Item> Parse(Stream xlsx, out Md04ParseInfo info)
     {
         var rows = ExcelSax.ReadAllRows(xlsx);
-        info = new Md04ParseInfo([], []);
+        info = new Md04ParseInfo([], [], []);
         if (rows.Count == 0) return [];
 
         // La cabecera puede no estar en la primera fila (exports con título encima).
@@ -61,7 +65,18 @@ public static partial class Md04ExcelParser
         if (colStatus == -1 && colSemaforo == -1) noReconocidas.Add("Status");
         if (colMe3 == -1 && colExcepcion == -1) noReconocidas.Add("ME3");
         if (colMe6 == -1 && colExcepcion == -1) noReconocidas.Add("ME6");
-        info = new Md04ParseInfo(headers.Where(h => h.Length > 0).ToList(), noReconocidas);
+
+        // Mapeo de campos clave → cabecera real asignada (diagnóstico visible en la carga).
+        string Cab(int idx) => idx >= 0 && idx < headers.Count ? $"«{headers[idx]}»" : "no encontrada";
+        var mapeo = new List<string>
+        {
+            $"Status→{Cab(colStatus)}",
+            $"Semáforo→{Cab(colSemaforo)}",
+            $"ME3→{Cab(colMe3)}",
+            $"ME6→{Cab(colMe6)}",
+            $"Excepción→{Cab(colExcepcion)}",
+        };
+        info = new Md04ParseInfo(headers.Where(h => h.Length > 0).ToList(), noReconocidas, mapeo);
 
         var result = new List<ParsedMd04Item>();
         foreach (var cells in rows.Skip(headerRow + 1))
