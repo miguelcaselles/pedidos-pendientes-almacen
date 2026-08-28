@@ -8,6 +8,9 @@ namespace PedidosPendientes.Infrastructure.Excel;
 /// Formato real: Status ("XOO" rojo / "OXO" amarillo / "OOX" verde), Material,
 /// Área pl.nec. (p. ej. "L025-1000"), Denominación, ME3 (pedido fuera de plazo de
 /// entrega) y ME6 (por debajo de stock de seguridad).
+/// El export real de Suministros (validado el 28/08/2026) usa otras cabeceras para
+/// lo mismo: "Estado", "Área planif.MRP", "Descripción del material",
+/// "Grupo excepción 3" y "Grupo excepción 6"; ambas variantes se reconocen.
 /// Tolerante a variantes: si el fichero trae columnas de stock/punto de pedido las
 /// conserva como informativas, y si no hay columna Status deduce el semáforo del
 /// stock (respaldo para formatos antiguos).
@@ -52,7 +55,9 @@ public static partial class Md04ExcelParser
         var colConsumo = Find(ConsumoRegex());
         // Algunos exports de MD04 traen una columna "Excepción" cuyos VALORES son
         // los códigos ("ME3", "ME6", "ME3 ME6"...), en vez de columnas ME3/ME6.
-        var colExcepcion = Find(ExcepcionRegex());
+        // Las columnas ya asignadas a ME3/ME6 ("Grupo excepción 3/6") no cuentan.
+        var colExcepcion = headers.FindIndex(h => ExcepcionRegex().IsMatch(h));
+        if (colExcepcion == colMe3 || colExcepcion == colMe6) colExcepcion = -1;
 
         // Sin columna de material reconocible el fichero no es el MD04: se rechaza
         // en vez de importar basura por posición.
@@ -158,16 +163,16 @@ public static partial class Md04ExcelParser
     [GeneratedRegex(@"^[XOxo]{3}$")]
     private static partial Regex NexusStatusRegex();
 
-    [GeneratedRegex(@"^\s*status\s*$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*(status|estado)\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex StatusRegex();
 
     [GeneratedRegex(@"[aá]rea\s*pl", RegexOptions.IgnoreCase)]
     private static partial Regex AreaRegex();
 
-    [GeneratedRegex(@"^\s*ME\s*3\s*$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*ME\s*3\s*$|excepci[oó]n\s*3\b", RegexOptions.IgnoreCase)]
     private static partial Regex Me3Regex();
 
-    [GeneratedRegex(@"^\s*ME\s*6\s*$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*ME\s*6\s*$|excepci[oó]n\s*6\b", RegexOptions.IgnoreCase)]
     private static partial Regex Me6Regex();
 
     [GeneratedRegex(@"^\s*material\s*$|\bmaterial\b|c[oó]digo", RegexOptions.IgnoreCase)]
